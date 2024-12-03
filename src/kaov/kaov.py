@@ -532,7 +532,7 @@ class AOV:
         fig.suptitle(figtitle, fontsize=25, y=1.05)
         return fig, axs
         
-    def set_hypotheses(self, hypotheses=None, by_level=False, 
+    def set_hypotheses(self, hypotheses='pairwise', by_level=False, 
                        test_intercept=False, true_proportions=False):
         """
         Set hypotheses to be tested.
@@ -541,10 +541,10 @@ class AOV:
         ----------
         hypotheses : str or None or list[tuple]
             Hypotheses to be tested.
-            - if str: either 'pairwise' or 'one-vs-all'. Recommended options in
-            combination with OneHot encoding. If 'pairwise', the levels of a 
-            factor are compared one to another in the pairwise way. If 
-            'one-vs-all', each level is compared to the factor mean.
+            - if str: either 'pairwise' (default) or 'one-vs-all'. Recommended 
+            options in combination with OneHot encoding. If 'pairwise', the 
+            levels of a factor are compared one to another in the pairwise way.
+            If 'one-vs-all', each level is compared to the factor mean.
             - if None: produces an identity contrast matrix for each factor.
             Intended for other coding schemes (e.g. Treatment, Sum, etc).
             - if list[tuple]: custom hypothesis option. Each element of the 
@@ -696,7 +696,7 @@ class AOV:
             pvals += [chi2.sf(stat,t * d)]
         return stats, pvals
     
-    def project_on_discriminant(self, K, K_T, D, center=False):
+    def project_on_discriminant(self, K, K_T, D, center=True):
         """
         Computes of embeddings of each observation on the discriminant axes 
         associated with the test. The latter are correspond to the 
@@ -712,8 +712,8 @@ class AOV:
             A quantity containing the information on the contrast matrix,
             obtained with `_compute_D`.
         center : bool, optional
-            If True, the projections are centered with respect to the factor 
-            mean. The default is False.
+            If True (default), the projections are centered with respect to
+            the factor mean.
 
         Returns
         -------
@@ -801,8 +801,8 @@ class AOV:
                 pvalues.loc[:, f] /= pval_ranks
                 pvalues.loc[:, f][pvalues.loc[:, f] > 1] = 1            
         
-    def test(self, hypotheses=None, by_level=False, t_max=100, correction=None, 
-             test_intercept=False, true_proportions=False, center_projections=False):
+    def test(self, hypotheses='pairwise', by_level=False, t_max=100, correction=None, 
+             test_intercept=False, true_proportions=False, center_projections=True):
         """
         Performs kernel hypothesis tests for the given model. Simultaneously 
         calculates projections on the associated discriminant axes as well as
@@ -812,8 +812,8 @@ class AOV:
         ----------
         hypotheses : str or None or list[tuple]
             Hypotheses to be tested.
-            - if str: either 'pairwise' or 'one-vs-all'. Recommended options in
-            combination with OneHot encoding.
+            - if str: either 'pairwise' (default) or 'one-vs-all'. Recommended 
+            options in combination with OneHot encoding.
             - if None: produces an identity contrast matrix for each factor.
             Intended for other coding schemes (e.g. Treatment, Sum, etc).
             - if list[tuple]: custom hypothesis option. Each element of the 
@@ -843,8 +843,8 @@ class AOV:
             true level proportions are taken into account, so the factor mean 
             is the actual global mean of the factor.
         center_projections : bool, optional
-            If True, the projections are centered with respect to the factor 
-            mean. The default is False.
+            If True (default), the projections are centered with respect to
+            the factor mean.
 
         Returns
         -------
