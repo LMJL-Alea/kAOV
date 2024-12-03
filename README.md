@@ -6,13 +6,13 @@ Install from GitHub:
 $ pip install kaov@git+https://github.com/LMJL-Alea/kAOV@main
 ```
 ## How to use
-Load dataset:
+Load a dataset:
 ```python
 >>> import pandas as pd
 >>> url = "https://raw.githubusercontent.com/LMJL-Alea/kAOV/refs/heads/main/Data/reversion_kAOV.csv"
 >>> data = pd.read_csv(url, index_col=0)
 ```
-Write the formula using OneHot encoding:
+Write a formula using OneHot encoding:
 ```python
 >>> formula = ' + '.join(data.columns[:-2]) + ' ~ C(Medium, OneHot) + C(Batch, OneHot)'
 >>> print(formula)
