@@ -308,7 +308,6 @@ class AOV:
         if self.kernel_function == 'gauss':
             (self.kernel,
              self.computed_bandwidth) = gauss_kernel_median(x=self.endog,
-                                                            y=None, 
                                                             bandwidth=kernel_bandwidth,  
                                                             median_coef=kernel_median_coef,
                                                             return_bandwidth=True)
