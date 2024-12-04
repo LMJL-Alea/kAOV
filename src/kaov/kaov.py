@@ -968,21 +968,51 @@ class KernelAOVResults():
         self.projections = projections
         self.cook_distances = cook_distances
         
-    def __str__(self, tmax=5):
+    def _summary_obj(self, t_max=5):
+        """
+        Creates a summary object to display a summary of the test.
+
+        Parameters
+        ----------
+        t_max : int, optional
+            Maximal truncation to display. The default is 5.
+
+        Returns
+        -------
+        An instance of statsmodels.iolib.summary2
+
+        """
         summ = summary2.Summary()
         summ.add_title('Kernel Analysis of Variance')
-        for key in self.stats:
+        for i, key in enumerate(self.stats):
             summ.add_dict({'': ''})
-            df = self.stats[key].iloc[:tmax].transpose()
+            df = self.stats[key].iloc[:t_max].transpose()
             df.columns = [f'T={t}' for t in df.columns]
+            df.index = ['| ' + ' ' * (7 - len(ind)) + ind for ind in df.index]
             df = df.reset_index()
             c = list(df.columns)
-            c[0] = key
+            c[0] = key + ' |  Trunc.'
             df.columns = c
             df.index = ['', '']
             float_format = '%.3f'
             summ.add_df(df, float_format=float_format)
-        return summ.__str__()
+        return summ
+    
+    def summary(self, t_max=5):
+        """
+        Prints a summary of the test.
+
+        Parameters
+        ----------
+        t_max : int, optional
+            Maximal truncation to display. The default is 5.
+
+        """
+        _sum_obj = self._summary_obj(t_max=t_max)
+        print(_sum_obj)
+        
+    def __str__(self):
+        return self._summary_obj().__str__()
     
     def plot_density(self, t=100, tests=None, colormap='viridis', alpha=.5,
                      legend_fontsize=12, font_family='serif', figsize=None):
