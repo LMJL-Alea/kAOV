@@ -1,4 +1,5 @@
 # kAOV: Kernel Analysis of Variance
+A Python library for general kernel hypothesis testing, accompanying [[1]](#1).
 
 ## Installation
 Install from GitHub:
@@ -40,3 +41,10 @@ Create a model and run a test:
           | P-value  0.0000   0.0000   0.0000   0.0000   0.0000
 ===============================================================
 ```
+
+For more details see the [tutorial](https://github.com/LMJL-Alea/kAOV/blob/main/tutorial_kaov.ipynb).
+
+## References
+
+<a id="1">[1]</a> 
+Anthony Ozier-Lafontaine, Polina Arsenteva, Franck Picard, Bertrand Michel. Extending Kernel Testing To General Designs.  2024. Preprint, [	arXiv:2405.13799](https://arxiv.org/abs/2405.13799)
