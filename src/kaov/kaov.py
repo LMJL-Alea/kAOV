@@ -576,7 +576,7 @@ class AOV:
 
         """
         if isinstance(hypotheses, str):
-            if 'OneHot' not in self.formula:
+            if not hasattr(self, 'formula') or 'OneHot' not in self.formula:
                 warnings.warn("'pairwise' and 'one-vs-all' options for `hypotheses` "
                               "are intended for OneHot encoding. Otherwise, "
                               "the test might be difficult to interpret.")
