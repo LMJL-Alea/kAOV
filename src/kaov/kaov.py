@@ -528,6 +528,8 @@ class AOV:
             ax.legend(markers, factor_lvls, numpoints=1, fontsize=legend_fontsize,
                       bbox_to_anchor=(1.01, 0.5), loc='center left')
             ax.set_title(factor, fontsize=18)
+            ax.set_xlabel('Predictions', fontsize=14)
+            ax.set_ylabel('Residuals', fontsize=14)
         plt.tight_layout()
         fig.suptitle(figtitle, fontsize=25, y=1.05)
         return fig, axs
@@ -1088,6 +1090,8 @@ class KernelAOVResults():
                 ax.legend(bbox_to_anchor=(1.01, 0.5), loc='center left',
                           fontsize=legend_fontsize)
             ax.set_title(test, fontsize=18)
+            ax.set_xlabel('Discriminant axis', fontsize=14)
+            ax.set_ylabel('Density', fontsize=14)
         plt.tight_layout()
         fig.suptitle(f'Discriminant axis projection density (t={t})', 
                      fontsize=25, y=1.05)
