@@ -7,6 +7,7 @@ Created on Thu Jun  6 13:28:15 2024
 """
 import itertools
 import warnings
+from tqdm import tqdm
 import numpy as np
 import pandas as pd
 from statsmodels.iolib import summary2
@@ -804,7 +805,8 @@ class AOV:
                 pvalues.loc[:, f][pvalues.loc[:, f] > 1] = 1            
         
     def test(self, hypotheses='pairwise', by_level=False, t_max=100, correction=None, 
-             test_intercept=False, true_proportions=False, center_projections=True):
+             test_intercept=False, true_proportions=False, center_projections=True,
+             verbose=0):
         """
         Performs kernel hypothesis tests for the given model. Simultaneously 
         calculates projections on the associated discriminant axes as well as
@@ -847,6 +849,12 @@ class AOV:
         center_projections : bool, optional
             If True (default), the projections are centered with respect to
             the factor mean.
+        verbose : int, optional
+            The higher the verbosity, the more messages keeping track of 
+            computations. The default is 0.
+            - < 1: no messages,
+            - 1: progress bar with computation time,
+            - 2: print tested hypothesis' name.
 
         Returns
         -------
@@ -867,8 +875,12 @@ class AOV:
         # Get factor dummies to add the factor information to the data frames:
         factor_dummies = pd.DataFrame(self.exog.numpy().astype(int),
                                       columns=self.exog_names, index=self.index)
-        for hyp in hyps:
-            name, L = hyp
+        it = tqdm(range(len(hyps))) if verbose > 0 else range(len(hyps))
+        for i in it:
+            name, L = hyps[i]
+            if verbose > 1:
+                print('\n')
+                print(f'-Testing {name}...')
             if any(isinstance(l, str) for l in L):
                 L = DesignInfo(self.exog_names).linear_constraint(L).coefs
                 L = convert_to_torch(L)
