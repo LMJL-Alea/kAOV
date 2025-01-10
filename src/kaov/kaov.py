@@ -862,8 +862,12 @@ class AOV:
            See the documentation for KernelAOVResults.
 
         """
+        if verbose > 0:
+            print('-Computing the Gram matrix...')
         K = self.kernel(self.endog) 
         K_T = self._compute_K_T(t_max=t_max)
+        if verbose > 0:
+            print('-Testing hypotheses:')
         hyps = self.set_hypotheses(hypotheses=hypotheses, by_level=by_level, 
                                    test_intercept=test_intercept,
                                    true_proportions=true_proportions)
@@ -925,6 +929,8 @@ class AOV:
                 cook_distances[name][name] = dummies_factor_i.idxmax(axis=1)
         # Correct p-values:
         if correction is not None:
+            if verbose > 0:
+                print('-Correcting p-values for multiple tests...')
             corrected_pvals_df = pd.DataFrame(corrected_pvals_dict)
             corrected_pvals_df.index += 1
             self.correct_pvalues(corrected_pvals_df, correction=correction, by_level=by_level)
