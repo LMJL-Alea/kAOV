@@ -802,7 +802,7 @@ class AOV:
             if correction == 'BH':
                 pval_ranks = pvalues.loc[:, f].rank(axis=1, method='dense')
                 pvalues.loc[:, f] /= pval_ranks
-                pvalues.loc[:, f][pvalues.loc[:, f] > 1] = 1            
+                pvalues.clip(upper=1, inplace=True)
         
     def test(self, hypotheses='pairwise', by_level=False, t_max=100, correction=None, 
              test_intercept=False, true_proportions=False, center_projections=True,
