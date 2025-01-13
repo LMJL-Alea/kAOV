@@ -804,9 +804,9 @@ class AOV:
                 pvalues.loc[:, f] /= pval_ranks
                 pvalues.clip(upper=1, inplace=True)
         
-    def test(self, hypotheses='pairwise', by_level=False, t_max=100, correction=None, 
-             test_intercept=False, true_proportions=False, center_projections=True,
-             verbose=0):
+    def test(self, hypotheses='pairwise', hypotheses_subset=None,
+             by_level=False, t_max=100, correction=None, test_intercept=False, 
+             true_proportions=False, center_projections=True, verbose=0):
         """
         Performs kernel hypothesis tests for the given model. Simultaneously 
         calculates projections on the associated discriminant axes as well as
@@ -824,6 +824,12 @@ class AOV:
             list should be a tuple of size 2: `(name, contrast_L)`, where `name`
             is a string and contrast_L is a contrast matrix in the form of a
             torch.tensor (`dtype=torch.float64`).
+        hypotheses_subset : list of strings
+            Names of tests to perform, subset of all the tests in the
+            `hypotheses` variable (particularly useful with the by_level 
+            testing option, when the total number of hypotheses is high and 
+            the interest lies in the subset). The default is None, i.e. all 
+            hypotheses are tested.
         by_level : bool, optional
             If False (default), computes the global test. If True, computes the 
             test by level or by a pair of levels.
@@ -1046,10 +1052,10 @@ class KernelAOVResults():
         t : int, optional
             Axis to plot, i.e. the embeddings are projected on the t-th 
             eigenfunction.
-        tests : list of strings
-            List containing a list of tests to plot, out of all the tests in 
+        tests : list of strings or None
+            List containing names of tests to plot, out of all the tests in 
             the KernelAOVResults object (particularly useful with the by_level 
-            testing option).
+            testing option). The default is None, i.e. all tests are plotted.
         colormap : str, optional
             The name of a matplotlib colormap to be used for different factor
             levels. The default is 'viridis'.
