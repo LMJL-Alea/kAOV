@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "kAOV" 
-version = "0.2.7"
+version = "0.2.8"
 description = "Kernel Analysis of Variance"
 readme = "README.md"
 requires-python = ">=3.8"

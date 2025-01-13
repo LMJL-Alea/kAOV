@@ -877,6 +877,8 @@ class AOV:
         hyps = self.set_hypotheses(hypotheses=hypotheses, by_level=by_level, 
                                    test_intercept=test_intercept,
                                    true_proportions=true_proportions)
+        if hypotheses_subset is not None:
+            hyps = [h for h in hyps if h[0] in hypotheses_subset]
         results = {}
         projections = {}
         cook_distances = {}
@@ -888,54 +890,51 @@ class AOV:
         it = tqdm(range(len(hyps))) if verbose > 0 else range(len(hyps))
         for i in it:
             name, L = hyps[i]
-            if hypotheses_subset is not None and name not in hypotheses_subset:
+            if verbose > 1:
+                print('\n')
+                print(f'-Testing {name}...')
+            if any(isinstance(l, str) for l in L):
+                L = DesignInfo(self.exog_names).linear_constraint(L).coefs
+                L = convert_to_torch(L)
+            L = L.unsqueeze(0) if L.dim() == 1 else L
+            D = self._compute_D(L)
+            stats, pvals = self._compute_kernel_HL_test_statistic(K_T, D, len(L), 
+                                                                 t_max=t_max)
+            results_dict = {'TKHL' : stats,
+                               'P-value' : pvals}
+            results[name] = pd.DataFrame(results_dict)
+            results[name].index.name = 'Truncation'
+            results[name].index += 1
+            if correction is not None:
+                corrected_pvals_dict[name] = pvals
+                
+            # Projections on discriminant axes and Cook's distances:
+            projections[name] = self.project_on_discriminant(K, K_T, D,
+                                                             center=center_projections)
+            cook_distances[name] = self.compute_cook_distances(L, t_max=t_max)
+            if not hasattr(self, 'formula'):
+                projections[name][name] = np.nan
+                cook_distances[name][name] = np.nan
+            elif name == 'Intercept' or hypotheses not in [None, 'pairwise', 'one-vs-all']:
                 pass
             else:
-                if verbose > 1:
-                    print('\n')
-                    print(f'-Testing {name}...')
-                if any(isinstance(l, str) for l in L):
-                    L = DesignInfo(self.exog_names).linear_constraint(L).coefs
-                    L = convert_to_torch(L)
-                L = L.unsqueeze(0) if L.dim() == 1 else L
-                D = self._compute_D(L)
-                stats, pvals = self._compute_kernel_HL_test_statistic(K_T, D, len(L), 
-                                                                     t_max=t_max)
-                results_dict = {'TKHL' : stats,
-                                   'P-value' : pvals}
-                results[name] = pd.DataFrame(results_dict)
-                results[name].index.name = 'Truncation'
-                results[name].index += 1
-                if correction is not None:
-                    corrected_pvals_dict[name] = pvals
-                    
-                # Projections on discriminant axes and Cook's distances:
-                projections[name] = self.project_on_discriminant(K, K_T, D,
-                                                                 center=center_projections)
-                cook_distances[name] = self.compute_cook_distances(L, t_max=t_max)
-                if not hasattr(self, 'formula'):
-                    projections[name][name] = np.nan
-                    cook_distances[name][name] = np.nan
-                elif name == 'Intercept' or hypotheses not in [None, 'pairwise', 'one-vs-all']:
-                    pass
-                else:
-                    # Adding factor information:
-                    pd.options.mode.chained_assignment = None  # default='warn'
-                    if not by_level: # specify all levels for all factors
-                        _slice = self._factor_info[name]
-                        dummies_factor_i = factor_dummies.iloc[:, _slice]
-                    else: # specify only those levels that are relevant for a given test
-                        if hypotheses == 'one-vs-all':
-                            _slice = [s for f, s in self._factor_info.items() if f in name][0]
-                        else:
-                            _slice = [i for i, en in enumerate(self.exog_names) if en in name]
-                        dummies_factor_i = factor_dummies.iloc[:, _slice]
-                        # Put NaN for the irrelevant levels (needed for visualizations)
-                        nan_obs = (dummies_factor_i.max(axis=1) == 0)
-                        dummies_factor_i['NaN'] = 0
-                        dummies_factor_i.loc[nan_obs, 'NaN'] = 2
-                    projections[name][name] = dummies_factor_i.idxmax(axis=1)
-                    cook_distances[name][name] = dummies_factor_i.idxmax(axis=1)
+                # Adding factor information:
+                pd.options.mode.chained_assignment = None  # default='warn'
+                if not by_level: # specify all levels for all factors
+                    _slice = self._factor_info[name]
+                    dummies_factor_i = factor_dummies.iloc[:, _slice]
+                else: # specify only those levels that are relevant for a given test
+                    if hypotheses == 'one-vs-all':
+                        _slice = [s for f, s in self._factor_info.items() if f in name][0]
+                    else:
+                        _slice = [i for i, en in enumerate(self.exog_names) if en in name]
+                    dummies_factor_i = factor_dummies.iloc[:, _slice]
+                    # Put NaN for the irrelevant levels (needed for visualizations)
+                    nan_obs = (dummies_factor_i.max(axis=1) == 0)
+                    dummies_factor_i['NaN'] = 0
+                    dummies_factor_i.loc[nan_obs, 'NaN'] = 2
+                projections[name][name] = dummies_factor_i.idxmax(axis=1)
+                cook_distances[name][name] = dummies_factor_i.idxmax(axis=1)
         # Correct p-values:
         if correction is not None:
             if verbose > 0:
