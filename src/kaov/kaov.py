@@ -929,6 +929,10 @@ class AOV:
                     else:
                         _slice = [i for i, en in enumerate(self.exog_names) if en in name]
                     dummies_factor_i = factor_dummies.iloc[:, _slice]
+                    # Case of interaction effects:
+                    if ':' in name:
+                        interaction_cols = dummies_factor_i.columns.str.contains(':')
+                        dummies_factor_i = dummies_factor_i.loc[:, interaction_cols]
                     # Put NaN for the irrelevant levels (needed for visualizations)
                     nan_obs = (dummies_factor_i.max(axis=1) == 0)
                     dummies_factor_i['NaN'] = 0
