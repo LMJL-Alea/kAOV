@@ -2,7 +2,7 @@
 
 ## Authors
 
-- Polina Artenseva ([ORCID:0000-0002-7554-5000](https://orcid.org/0000-0002-7554-5000)) [[1]](#1)
+- Polina Arsenteva ([ORCID:0000-0002-7554-5000](https://orcid.org/0000-0002-7554-5000)) [[1]](#1)
 - Anthony Ozier-Lafontaine ([ORCID:0000-0003-3232-0503](https://orcid.org/0000-0003-3232-0503)) [[2]](#2)
 
 ## Contributors
