@@ -1,0 +1,76 @@
+{
+    "@context": "https://w3id.org/codemeta/3.0",
+    "type": "SoftwareSourceCode",
+    "author": [
+        {
+            "id": "https://orcid.org/0000-0002-7554-5000",
+            "type": "Person",
+            "affiliation": {
+                "type": "Organization",
+                "name": "Laboratory of Biology and Modelling of the Cell, Université de Lyon, Ecole Normale Supérieure de Lyon, CNRS, UMR5239, Université Claude Bernard Lyon 1, F-69007 Lyon, France"
+            },
+            "email": "polina.arsenteva@ens-lyon.fr",
+            "familyName": "Arsenteva",
+            "givenName": "Polina"
+        },
+        {
+            "id": "https://orcid.org/0000-0003-3232-0503",
+            "type": "Person",
+            "affiliation": {
+                "type": "Organization",
+                "name": "Nantes Université, Centrale Nantes, Laboratoire de Mathématiques Jean Leray, CNRS UMR 6629, F‐44000 Nantes, France"
+            },
+            "email": "antho.ozier.laf@gmail.com",
+            "familyName": "Ozier-Lafontaine",
+            "givenName": "Anthony"
+        }
+    ],
+    "codeRepository": "git+https://github.com/LMJL-Alea/kAOV",
+    "contributor": [
+        {
+            "id": "https://orcid.org/0000-0001-8084-5481",
+            "type": "Person",
+            "affiliation": {
+                "type": "Organization",
+                "name": "Laboratory of Biology and Modelling of the Cell, Université de Lyon, Ecole Normale Supérieure de Lyon, CNRS, UMR5239, Université Claude Bernard Lyon 1, F-69007 Lyon, France"
+            },
+            "email": "franck.picard@ens-lyon.fr",
+            "familyName": "Picard",
+            "givenName": "Franck"
+        },
+        {
+            "id": "https://orcid.org/0000-0002-5901-4146",
+            "type": "Person",
+            "affiliation": {
+                "type": "Organization",
+                "name": "Nantes Université, Centrale Nantes, Laboratoire de Mathématiques Jean Leray, CNRS UMR 6629, F‐44000 Nantes, France"
+            },
+            "email": "Bertrand.Michel@ec-nantes.fr",
+            "familyName": "Michel",
+            "givenName": "Bertrand"
+        },
+        {
+            "id": "https://orcid.org/0000-0003-2567-1401",
+            "type": "Person",
+            "affiliation": {
+                "type": "Organization",
+                "name": "Laboratory of Biology and Modelling of the Cell, Université de Lyon, Ecole Normale Supérieure de Lyon, CNRS, UMR5239, Université Claude Bernard Lyon 1, F-69007 Lyon, France"
+            },
+            "email": "ghislain.durif@ens-lyon.fr",
+            "familyName": "Durif",
+            "givenName": "Ghislain"
+        }
+    ],
+    "dateModified": "2025-01-15",
+    "description": "A Python library for general kernel hypothesis testing.",
+    "keywords": [
+        "kernel testing",
+        "analysis of variance"
+    ],
+    "license": "https://spdx.org/licenses/CC0-1.0",
+    "name": "kAOV",
+    "programmingLanguage": "Python 3",
+    "relatedLink": "https://arxiv.org/abs/2405.13799",
+    "version": "0.2.9",
+    "referencePublication": "https://arxiv.org/abs/2405.13799"
+}
