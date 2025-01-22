@@ -23,10 +23,7 @@
             "email": "antho.ozier.laf@gmail.com",
             "familyName": "Ozier-Lafontaine",
             "givenName": "Anthony"
-        }
-    ],
-    "codeRepository": "git+https://github.com/LMJL-Alea/kAOV",
-    "contributor": [
+        },
         {
             "id": "https://orcid.org/0000-0001-8084-5481",
             "type": "Person",
@@ -61,6 +58,7 @@
             "givenName": "Ghislain"
         }
     ],
+    "codeRepository": "git+https://github.com/LMJL-Alea/kAOV",
     "dateModified": "2025-01-15",
     "description": "A Python library for general kernel hypothesis testing.",
     "keywords": [
