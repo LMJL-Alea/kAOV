@@ -225,6 +225,10 @@ class AOV:
     kernel_median_coef : float, optional
         Multiple of the median to compute bandwidth if `kernel_bandwidth='median'`.
         The default is 1. 
+    sp_cutoff : float, optional
+        Cutoff threshold for the eigendecomposition of XX, performed in order 
+        to obtain the generalized inverse (only the values larger than cutoff
+        are kept). The default is 10e-10. 
 
     Attributes:
     ----------
@@ -269,7 +273,7 @@ class AOV:
     """
     def __init__(self, endog, exog, meta=None, endog_names=None, exog_names=None,
                  kernel_function='gauss', kernel_bandwidth='median',
-                 kernel_median_coef=1):
+                 kernel_median_coef=1, sp_cutoff=10e-10):
         self.exog = convert_to_torch(exog)
         self.endog = convert_to_torch(endog)
         self.meta = meta
@@ -320,7 +324,7 @@ class AOV:
         ### Calculate useful matrices:
         XX = matmul(self.exog.T, self.exog)
         sp, ev = ordered_eigsy(XX)
-        non_zero = sp > 10e-14
+        non_zero = sp > sp_cutoff
         sp = sp[non_zero]
         ev = ev[:,non_zero]
         self._XXinv = multi_dot([ev, diag(sp ** -1), ev.T])
