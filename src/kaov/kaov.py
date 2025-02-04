@@ -521,13 +521,14 @@ class AOV:
             ax.set_xlim(a - (b - a) / 10, b + (b - a) / 10)
             for c in combs:
                 c_obs = (self.meta == c).all(axis=1)
-                color_ind = np.intersect1d(factor_lvls, c, return_indices=True)[1]
-                bp = ax.boxplot(diagn[t][c_obs], positions=pred[t][c_obs].unique(),
-                                widths=(b - a) / len(combs), patch_artist=True,
-                                manage_ticks=False, medianprops=medianprops,
-                                whiskerprops=whiskerprops)
-                bp['boxes'][0].set_alpha(alpha)
-                bp['boxes'][0].set_facecolor(colors[color_ind])
+                if c_obs.sum() > 0:
+                    color_ind = np.intersect1d(factor_lvls, c, return_indices=True)[1]
+                    bp = ax.boxplot(diagn[t][c_obs], positions=pred[t][c_obs].unique(),
+                                    widths=(b - a) / len(combs), patch_artist=True,
+                                    manage_ticks=False, medianprops=medianprops,
+                                    whiskerprops=whiskerprops)
+                    bp['boxes'][0].set_alpha(alpha)
+                    bp['boxes'][0].set_facecolor(colors[color_ind])
             markers = [plt.Line2D([0,0],[0,0], color=color, marker='o', linestyle='') 
                        for color in colors]
             ax.legend(markers, factor_lvls, numpoints=1, fontsize=legend_fontsize,
