@@ -336,7 +336,8 @@ class AOV:
         
     @classmethod
     def from_formula(cls, formula, data, kernel_function='gauss', 
-                     kernel_bandwidth='median', kernel_median_coef=1):
+                     kernel_bandwidth='median', kernel_median_coef=1, 
+                     sp_cutoff=10e-10):
         """
         Creates a kernel linear model from a formula and a dataframe.
 
@@ -360,6 +361,10 @@ class AOV:
         kernel_median_coef : float, optional
             Multiple of the median to compute bandwidth if `kernel_bandwidth='median'`.
             The default is 1. 
+        sp_cutoff : float, optional
+            Cutoff threshold for the eigendecomposition of XX, performed in order 
+            to obtain the generalized inverse (only the values larger than cutoff
+            are kept). The default is 10e-10.
 
         Returns
         -------
@@ -381,7 +386,8 @@ class AOV:
             
         aov_obj = cls(endog, exog, meta=meta, kernel_function=kernel_function, 
                       kernel_bandwidth=kernel_bandwidth,
-                      kernel_median_coef=kernel_median_coef)
+                      kernel_median_coef=kernel_median_coef,
+                      sp_cutoff=sp_cutoff)
         aov_obj.formula = formula
         aov_obj._factor_info = exog.design_info.term_name_slices
         # Simplify the names for OneHot:
