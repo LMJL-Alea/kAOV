@@ -378,8 +378,7 @@ class AOV:
             
         aov_obj = cls(endog, exog, meta=meta, kernel_function=kernel_function, 
                       kernel_bandwidth=kernel_bandwidth,
-                      kernel_median_coef=kernel_median_coef,
-                      sp_cutoff=sp_cutoff)
+                      kernel_median_coef=kernel_median_coef)
         aov_obj.formula = formula
         aov_obj._factor_info = exog.design_info.term_name_slices
         # Simplify the names for OneHot:
