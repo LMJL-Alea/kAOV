@@ -21,11 +21,12 @@ maintainers = [
 dependencies = [
   "anthony_project_tools @ git+https://github.com/lereldarion/anthony_project_tools.git", 
   "matplotlib", 
-  "numpy",
+  "numpy < 2",
   "pandas",
   "scipy",
   "patsy",
   "torch >= 2.2.0", 
-  "statsmodels >= 0.14.0"
+  "statsmodels >= 0.14.0",
+  "tqdm"
 ]
 
