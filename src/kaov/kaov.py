@@ -15,7 +15,7 @@ from patsy import dmatrices, DesignInfo, ContrastMatrix
 from scipy.stats import chi2, gaussian_kde
 import matplotlib.pyplot as plt
 from matplotlib import rc, colormaps
-from torch import cdist, exp, matmul, diag, trace, sqrt
+from torch import cdist, exp, matmul, diag, trace, sqrt, pow
 from torch import eye, ones, tensor, float64, from_numpy, Tensor
 from torch.linalg import multi_dot
 from apt.eigen_wrapper import eigsy
@@ -320,6 +320,7 @@ class AOV:
         ### Calculate useful matrices:
         XX = matmul(self.exog.T, self.exog)
         sp, ev = ordered_eigsy(XX)
+        # Cut off the spectrum since the matrix is not full rank:
         cutoff = np.linalg.matrix_rank(self.exog)
         sp = sp[: cutoff]
         ev = ev[:, : cutoff]
@@ -730,7 +731,12 @@ class AOV:
         """
         K_T_D_K_T = multi_dot([K_T, D, K_T.T])
         sp, ev = ordered_eigsy(K_T_D_K_T)
+        # Cut off the spectrum since the matrix is not full rank:
+        cutoff = np.linalg.matrix_rank(K_T_D_K_T)
+        sp = sp[: cutoff]
+        ev = ev[:, : cutoff]
         norm = diag(multi_dot([ev.T, K_T, D, K, D, K_T.T, ev]))
+        norm = pow(norm, -1/2)
         centering_mat = ones((self.nobs, self.nobs), dtype=float64) / self.nobs
         K_ = K - matmul(K, centering_mat) if center else K
         proj = norm * multi_dot([ev.T, K_T, D, K_]).T
@@ -1088,7 +1094,7 @@ class KernelAOVResults():
             An Axes object of the plot.
 
         """
-        tests = self.cook_distances.keys() if tests is None else tests
+        tests = self.projections.keys() if tests is None else tests
         nb_tests = len(tests)
         
         rc('font',**{'family': font_family})
@@ -1097,7 +1103,7 @@ class KernelAOVResults():
         fig, axs = plt.subplots(ncols=nb_tests, figsize=figsize)
         for f, test in enumerate(tests):
             ax = axs if nb_tests == 1 else axs[f]
-            T_max = len(self.projections[test].columns) - nb_tests
+            T_max = len(self.projections[test].columns) - 1
             t = min(t, T_max)
             proj_f = self.projections[test]
             test_lvls = proj_f[test].unique()
@@ -1184,7 +1190,7 @@ class KernelAOVResults():
         fig, axs = plt.subplots(ncols=nb_tests, figsize=figsize)
         for f, test in enumerate(tests):
             ax = axs if nb_tests == 1 else axs[f]
-            T_max = len(self.cook_distances[test].columns) - nb_tests
+            T_max = len(self.cook_distances[test].columns) - 1
             t1 = min(t1, T_max)
             t2 = min(t2, T_max)
             cook_f = self.cook_distances[test]
