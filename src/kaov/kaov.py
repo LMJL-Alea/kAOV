@@ -377,8 +377,7 @@ class AOV:
             
         aov_obj = cls(endog, exog, meta=meta, kernel_function=kernel_function, 
                       kernel_bandwidth=kernel_bandwidth,
-                      kernel_median_coef=kernel_median_coef,
-                      sp_cutoff=sp_cutoff)
+                      kernel_median_coef=kernel_median_coef)
         aov_obj.formula = formula
         aov_obj._factor_info = exog.design_info.term_name_slices
         # Simplify the names for OneHot:
@@ -535,6 +534,7 @@ class AOV:
             ax.set_ylabel('Residuals', fontsize=14)
         plt.tight_layout()
         fig.suptitle(figtitle, fontsize=25, y=1.05)
+        plt.show()
         return fig, axs
         
     def set_hypotheses(self, hypotheses='pairwise', by_level=False, 
@@ -1127,6 +1127,7 @@ class KernelAOVResults():
         plt.tight_layout()
         fig.suptitle(f'Discriminant axis projection density (t={t})', 
                      fontsize=25, y=1.05)
+        plt.show()
         return fig, axs
         
     def plot_influence(self, t1=100, t2=100, tests=None, 
@@ -1209,5 +1210,6 @@ class KernelAOVResults():
         plt.tight_layout()
         fig.suptitle(f"Cook's distances (t={t1}) against projections (t={t2})", 
                      fontsize=25, y=1.05)
+        plt.show()
         return fig, axs
           
