@@ -197,6 +197,17 @@ def gauss_kernel_median(x, y=None, bandwidth='median', median_coef=1,
         return (kernel, computed_bandwidth)
     else: 
         return kernel
+    
+def _calculate_XXinv_and_ProjImX(X):
+    XX = matmul(X.T, X)
+    sp, ev = ordered_eigsy(XX)
+    # Cut off the spectrum since the matrix is not full rank:
+    cutoff = np.linalg.matrix_rank(X)
+    sp = sp[: cutoff]
+    ev = ev[:, : cutoff]
+    _XXinv = multi_dot([ev, diag(sp ** -1), ev.T])
+    _ProjImX = multi_dot([X, _XXinv, X.T])
+    return _XXinv, _ProjImX
 
 class OneHot(object):
     """
@@ -243,6 +254,18 @@ class Data:
         A 1-dimensional array_like containing names of the independent variables.
         If not specified (default), will be retrieved from `exog` or assigned 
         to numbers with respect to the order.
+    nystrom : bool, optional
+        If True, computes the Nystrom landmarks, in which case all 
+        attributes correspond to the landmarks and not the original data.
+        The default is False.
+    n_landmarks: int, optional
+        Number of landmarks used in the Nystrom method. If unspecified, one
+        fifth of the observations are selected as landmarks.
+    random_state :  int, RandomState instance or None
+        Determines random number generation for the landmarks selection. 
+        If None (default), the generator is the RandomState instance used 
+        by `np.random`. To ensure the results are reproducible, pass an int
+        to instanciate the seed, or a RandomState instance (recommended).
 
     Attributes:
     ----------
@@ -269,20 +292,22 @@ class Data:
         A 1-dimensional array_like containing names of the independent variables.
 
     """
-    def __init__(self, endog, exog, meta=None, endog_names=None, exog_names=None):
+    def __init__(self, endog, exog, meta=None, endog_names=None, exog_names=None,
+                 nystrom=False, n_landmarks=None, random_state=None):
         self.exog = convert_to_torch(exog)
         self.endog = convert_to_torch(endog)
         self.meta = meta
+        self.index = exog.index if hasattr(exog, "index") else range(self.nobs)
         self.nobs = self.exog.shape[0]
         self.nlvl = self.exog.shape[1]
         self.nvar = self.endog.shape[1]
-        self.index = exog.index if hasattr(exog, "index") else range(self.nobs)
         if endog_names is not None:
             self.endog_names = endog_names
         elif hasattr(endog, "columns"):
             self.endog_names = endog.columns
         else:
             self.endog_names = ['y' + str(x) for x in range(self.nvar)]
+            
         if exog_names is not None:
             self.exog_names = exog_names
         elif hasattr(exog, "columns"):
@@ -301,15 +326,33 @@ class Data:
             raise ValueError("The length of `endog_names` should be equal to "\
                              "the number of columns in `endog`.")  
         
-        ### Calculate useful matrices:
-        XX = matmul(self.exog.T, self.exog)
-        sp, ev = ordered_eigsy(XX)
-        # Cut off the spectrum since the matrix is not full rank:
-        cutoff = np.linalg.matrix_rank(self.exog)
-        sp = sp[: cutoff]
-        ev = ev[:, : cutoff]
-        self._XXinv = multi_dot([ev, diag(sp ** -1), ev.T])
-        self._ProjImX = multi_dot([self.exog, self._XXinv, self.exog.T])
+        # Calculate useful matrices:
+        self._XXinv, self._ProjImX = _calculate_XXinv_and_ProjImX(self.exog)
+        
+        self.nystrom = nystrom
+        if self.nystrom:
+            self.nobs = (n_landmarks if n_landmarks is not None 
+                         else min(self.nobs, self.nlvl * 30))
+            generators = (np.random.RandomState, np.random.Generator)
+            # TODO: replace random_state by generator in docs and stuff
+            if isinstance(random_state, generators):
+                rnd_gen = random_state
+            elif isinstance(random_state, int):
+                rnd_gen = np.random.default_rng(random_state)
+            else:
+                rnd_gen = np.random
+            h_ii = diag(self._ProjImX)
+            ny_ind = rnd_gen.choice(np.arange(self.exog.shape[0]), size=self.nobs,
+                                    p=h_ii/h_ii.sum(), replace=False)
+            ny_ind.sort()
+            self.exog = self.exog[ny_ind]
+            self.endog = self.endog[ny_ind]
+            if isinstance(self.meta, (pd.Series, pd.DataFrame)):
+                self.meta = self.meta.iloc[ny_ind]
+            else:
+                self.meta = self.meta[ny_ind]
+            self.index = self.index[ny_ind]
+            self._XXinv, self._ProjImX = _calculate_XXinv_and_ProjImX(self.exog)        
         self._ProjImXorthogonal = eye(self.nobs) - self._ProjImX
         
     def _diagonalize_residual_covariance(self, K):
@@ -322,14 +365,14 @@ class Data:
         Kresidual = 1 / self.nobs * multi_dot([self._ProjImXorthogonal,
                                                K, self._ProjImXorthogonal])
         sp, ev = ordered_eigsy(Kresidual)
-        sp12 = sp ** (-1) * self.nobs ** (-1/2)
+        sp_power = -1/2 if self.nystrom else -1
+        sp12 = sp ** sp_power * self.nobs ** (-1/2)
         to_ignore = sp12.isnan()
         sp12 = sp12[~to_ignore]
         U = sp12 * ev[:,~to_ignore]
         U_norm = matmul(self._ProjImXorthogonal, U)
         return sp, U_norm
         
-
 class AOV:
     """
     A class implementing Kernel Analysis Of Variance.
@@ -394,10 +437,17 @@ class AOV:
 
     """
     def __init__(self, endog, exog, meta=None, endog_names=None, exog_names=None,
+                 nystrom=False, n_landmarks=None, random_state=None,
                  kernel_function='gauss', kernel_bandwidth='median',
                  kernel_median_coef=1):
         self.data = Data(endog, exog, meta=meta, endog_names=endog_names, 
                          exog_names=exog_names)
+        ### Nystrom:
+        self.data_nystrom = None
+        if nystrom:
+            self.data_nystrom = Data(endog, exog, meta=meta, endog_names=endog_names, 
+                                     exog_names=exog_names, nystrom=True, 
+                                     n_landmarks=n_landmarks, random_state=random_state)
         
         ### Kernel:
         self.kernel_function = kernel_function
@@ -420,6 +470,7 @@ class AOV:
         
     @classmethod
     def from_formula(cls, formula, data, kernel_function='gauss', 
+                     nystrom=False, n_landmarks=None, random_state=None,
                      kernel_bandwidth='median', kernel_median_coef=1):
         """
         Creates a kernel linear model from a formula and a dataframe.
@@ -463,7 +514,9 @@ class AOV:
             s2 = ', OneHot)'
             exog.columns = [col.replace(s1, '').replace(s2, '') for col in exog.columns]
             
-        aov_obj = cls(endog, exog, meta=meta, kernel_function=kernel_function, 
+        aov_obj = cls(endog, exog, meta=meta, nystrom=nystrom, 
+                      n_landmarks=n_landmarks, random_state=random_state,
+                      kernel_function=kernel_function, 
                       kernel_bandwidth=kernel_bandwidth,
                       kernel_median_coef=kernel_median_coef)
         aov_obj.formula = formula
@@ -742,16 +795,30 @@ class AOV:
         LXXLinv = self._compute_LXXLinv(L)
         A = multi_dot([L.T, LXXLinv, L])
         D = multi_dot([self.data.exog, self.data._XXinv, A, self.data._XXinv, self.data.exog.T])
-        return D        
+        return D       
     
-    def _compute_K_T(self, t_max=100):
+    def _diagonalize_covariance_of_anchor_projected_residuals(self, anchors):
+        K_YZ = self.kernel(self.data.endog, self.data_nystrom.endog)
+        K_anchor_projected = multi_dot([anchors.T, K_YZ.T,
+                                        self.data._ProjImXorthogonal,
+                                        K_YZ, anchors])
+        K_anchor_projected *= (1/self.data.nobs)
+        return ordered_eigsy(K_anchor_projected)
+    
+    def _compute_K_T(self, t_max=100, n_anchors=None):
         """
         Intermediate quantity used in statistics calculations, based on a 
         transformation of the gram matrix K.
         
         """
-        K = self.kernel(self.data.endog)
-        sp, U_norm = self.data._diagonalize_residual_covariance(K)
+        data = self.data_nystrom if self.data_nystrom is not None else self.data
+        K = self.kernel(data.endog)
+        _, U_norm = data._diagonalize_residual_covariance(K)
+        if self.data_nystrom is not None:
+            norm_anchors = U_norm[:, : n_anchors]
+            sp_a, U_a = self._diagonalize_covariance_of_anchor_projected_residuals(norm_anchors)
+            U_norm = multi_dot([norm_anchors, (sp_a ** (-1/2) * U_a)])
+            K = self.kernel(self.data_nystrom.endog, self.data.endog)
         t_max = min(t_max, self.data.nobs)
         U_norm_T = U_norm[:, : t_max]
         K_T = multi_dot([U_norm_T.T, K])
@@ -884,7 +951,7 @@ class AOV:
         
     def test(self, hypotheses='pairwise', hypotheses_subset=None,
              by_level=False, t_max=100, correction=None, test_intercept=False, 
-             true_proportions=False, center_projections=True, verbose=0):
+             true_proportions=False, center_projections=True, verbose=0, n_anchors=None):
         """
         Performs kernel hypothesis tests for the given model. Simultaneously 
         calculates projections on the associated discriminant axes as well as
@@ -949,7 +1016,7 @@ class AOV:
         if verbose > 0:
             print('-Computing the Gram matrix...')
         K = self.kernel(self.data.endog)
-        K_T = self._compute_K_T(t_max=t_max)
+        K_T = self._compute_K_T(t_max=t_max, n_anchors=n_anchors)
         if verbose > 0:
             print('-Testing hypotheses:')
         hyps = self.set_hypotheses(hypotheses=hypotheses, by_level=by_level, 
