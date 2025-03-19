@@ -15,7 +15,7 @@ from patsy import dmatrices, DesignInfo, ContrastMatrix
 from scipy.stats import chi2, gaussian_kde
 import matplotlib.pyplot as plt
 from matplotlib import rc, colormaps
-from torch import cdist, exp, matmul, diag, trace, sqrt, pow
+from torch import cdist, exp, matmul, diag, trace, sqrt, pow, cat
 from torch import eye, ones, tensor, float64, from_numpy, Tensor
 from torch.linalg import multi_dot
 from apt.eigen_wrapper import eigsy
@@ -72,14 +72,17 @@ def convert_to_torch(A):
             print(f'Unknown data type {type(A)}')
     return B
 
-def distances(x):
+def distances(x, y=None):
     """
-    Computes the distances between each pair of rows of x.
+    Computes the distances between each pair of the two collections of row 
+    vectors of x and y, or x and itself if y is not provided.
     
     Parameters
     ----------
     x : torch.Tensor
-        2-d tensor containing the data to kernalize.
+        Input 2-d tensor.
+    y : None or torch.Tensor
+        Input 2-d tensor. Replaced by `x` if None.
 
     Returns
     -------
@@ -87,13 +90,32 @@ def distances(x):
         Distance matrix.
         
     """
-    if x.ndim != 2:
-        raise ValueError("A 2-dimensional `x` is expected.")
-    sq_dists = cdist(x, x, 
+    if y is None:
+        y = x.clone()
+    if x.ndim != 2 or y.ndim != 2:
+        raise ValueError("2-dimensional input is expected.")
+    if x.shape[1] != y.shape[1]:
+        raise ValueError("`x` and `y` must have the same second dimension.")
+    sq_dists = cdist(x, y, 
                      compute_mode='use_mm_for_euclid_dist_if_necessary').pow(2)  
     return sq_dists
-    
-def linear_kernel(x):
+
+def _median(x, y=None):    
+    if y == None:
+        dtot = distances(x)
+    else:
+        dtot = distances(cat((x,y)))
+    median = dtot.median()
+    if median == 0: 
+        warnings.warn('The median is null. To avoid a kernel with zero bandwidth, the median is replaced by the mean.')
+        mean = dtot.mean()
+        if mean == 0 : 
+            warnings.warn('The whole dataset is null.')
+        return mean
+    else:
+        return median
+
+def linear_kernel(x, y=None):
     """
     Computes the standard linear kernel k(x,y)= <x,y>.
 
@@ -101,17 +123,21 @@ def linear_kernel(x):
     ----------
     x : torch.Tensor
         2-d tensor containing the data to kernalize.
+    y : None or torch.Tensor
+        2-d tensor containing the data to kernalize. Replaced by `x` if None.
 
     Returns
     -------
     K : torch.Tensor
         Kernel matrix (gram).
-
+        
     """
-    K = matmul(x, x.T)
+    if y is None:
+        y = x.clone()
+    K = matmul(x, y.T)
     return K
 
-def gauss_kernel(x, sigma=1):
+def gauss_kernel(x, y=None, sigma=1):
     """
     Computes the standard Gaussian kernel k(x,y)=exp(- ||x-y||**2 / (2 * sigma**2)).
 
@@ -119,6 +145,8 @@ def gauss_kernel(x, sigma=1):
     ----------
     x : torch.Tensor
         2-d tensor containing the data to kernalize.
+    y : None or torch.Tensor
+        2-d tensor containing the data to kernalize. Replaced by `x` if None.
     sigma : int
         Standard deviation for Gaussian kernel, 1 by default.
 
@@ -128,11 +156,11 @@ def gauss_kernel(x, sigma=1):
         Kernel matrix (gram).
 
     """
-    d = distances(x)   # [sq_dists]_ij=||X_j - X_i \\^2
+    d = distances(x, y)   # [sq_dists]_ij=||X_j - Y_i \\^2
     K = exp(-d / (2 * sigma**2))  # Gram matrix
     return K
 
-def gauss_kernel_median(x, bandwidth='median', median_coef=1, 
+def gauss_kernel_median(x, y=None, bandwidth='median', median_coef=1, 
                         return_bandwidth=False):
     """
     Computes the gaussian kernel with bandwidth set as the median of the 
@@ -142,6 +170,8 @@ def gauss_kernel_median(x, bandwidth='median', median_coef=1,
     ----------
     x : torch.Tensor
         2-d tensor containing the data to kernalize.
+    y : None or torch.Tensor
+        2-d tensor containing the data to kernalize. Replaced by `x` if None.
     bandwidth : 'median' or float
         If 'median' (default), the bandwidth is calculated with the median 
         method. If float, the value is assigned to the bandwidth.
@@ -159,14 +189,25 @@ def gauss_kernel_median(x, bandwidth='median', median_coef=1,
         Bandwidth, calculated with the median method.
     """
     if bandwidth == 'median':
-        computed_bandwidth = sqrt(distances(x).median() * median_coef)
+        computed_bandwidth = sqrt(_median(x, y) * median_coef)
     else:
         computed_bandwidth = bandwidth
-    kernel = lambda a : gauss_kernel(a, computed_bandwidth)
+    kernel = lambda a, b=None : gauss_kernel(x=a, y=b, sigma=computed_bandwidth)
     if return_bandwidth:
         return (kernel, computed_bandwidth)
     else: 
         return kernel
+    
+def _calculate_XXinv_and_ProjImX(X):
+    XX = matmul(X.T, X)
+    sp, ev = ordered_eigsy(XX)
+    # Cut off the spectrum since the matrix is not full rank:
+    cutoff = np.linalg.matrix_rank(X)
+    sp = sp[: cutoff]
+    ev = ev[:, : cutoff]
+    _XXinv = multi_dot([ev, diag(sp ** -1), ev.T])
+    _ProjImX = multi_dot([X, _XXinv, X.T])
+    return _XXinv, _ProjImX
 
 class OneHot(object):
     """
@@ -189,7 +230,153 @@ class OneHot(object):
                               ["[%s]" % (level,) for level in levels])
     def code_without_intercept(self, levels):
         return self.code_with_intercept(levels)
+    
+class Data:
+    """
+    A class implementing...
+    
+    Parameters
+    ----------
+    endog : 2-d array_like
+        An array_like with dimensions nobs x nvar containing nobs values of 
+        nvar dependent variables.
+    exog : 2-d array_like
+        An array_like with dimensions nobs x nlvl containing nobs values of 
+        nlvl independent variables.
+    meta : None or 2-d array_like, optional
+        An array_like with the metadata for the dataset, i.e. containing
+        information on factors. Used for visualizations.
+    endog_names : None or 1-d array_like, optional
+        A 1-dimensional array_like containing names of the dependent variables.
+        If not specified (default), will be retrieved from `endog` or assigned 
+        to numbers with respect to the order.
+    exog_names : None or 1-d array_like, optional
+        A 1-dimensional array_like containing names of the independent variables.
+        If not specified (default), will be retrieved from `exog` or assigned 
+        to numbers with respect to the order.
+    nystrom : bool, optional
+        If True, computes the Nystrom landmarks, in which case the observations
+        in all attributes correspond to the landmarks and not the original data.
+        The default is False.
+    n_landmarks: int, optional
+        Number of landmarks used in the Nystrom method. If unspecified, one
+        fifth of the observations are selected as landmarks.
+    random_gen :  int, Generator, RandomState instance or None
+        Determines random number generation for the landmarks selection. 
+        If None (default), the generator is the RandomState instance used 
+        by `np.random`. To ensure the results are reproducible, pass an int
+        to instanciate the seed, or a Generator/RandomState instance (recommended).
 
+    Attributes:
+    ----------
+    endog : 2-d torch.tensor
+        A tensor with dimensions nobs x nvar containing nobs values of 
+        nvar dependent variables.
+    exog : 2-d torch.tensor
+        A tensor with dimensions nobs x nlvl containing nobs values of 
+        nlvl independent variables.
+    meta : None or 2-d array_like
+        An array_like with the metadata for the dataset, i.e. containing
+        information on factors. Used for visualizations. The default is None.
+    nobs : int
+        Number of observations. If `nystrom=True`, corresponds to the number 
+        of landmarks `n_landmarks`.
+    nlvl : int
+        Number of independent variables (i.e. levels of all factors).
+    nvar : int
+        Number of dependent variables.
+    index : 1-d array_like
+        Observation labels.
+    endog_names : 1-d array_like
+        A 1-dimensional array_like containing names of the dependent variables.
+    exog_names : 1-d array_like
+        A 1-dimensional array_like containing names of the independent variables.
+    nystrom : bool
+        False by default, True if the Nystrom approximation is performed, in 
+        which case the observations in all attributes correspond to the 
+        landmarks and not the original data.
+
+    """
+    def __init__(self, endog, exog, meta=None, endog_names=None, exog_names=None,
+                 nystrom=False, n_landmarks=None, random_gen=None):
+        self.exog = convert_to_torch(exog)
+        self.endog = convert_to_torch(endog)
+        self.meta = meta
+        self.index = exog.index if hasattr(exog, "index") else range(self.nobs)
+        self.nobs = self.exog.shape[0]
+        self.nlvl = self.exog.shape[1]
+        self.nvar = self.endog.shape[1]
+        if endog_names is not None:
+            self.endog_names = endog_names
+        elif hasattr(endog, "columns"):
+            self.endog_names = endog.columns
+        else:
+            self.endog_names = ['y' + str(x) for x in range(self.nvar)]
+            
+        if exog_names is not None:
+            self.exog_names = exog_names
+        elif hasattr(exog, "columns"):
+            self.exog_names = exog.columns
+        else:
+            if hasattr(self, '_factor_info') and 'Intercept' in self._factor_info:
+                self.exog_names = ['x' + str(x + 1) for x in range(self.nlvl - 1)]
+                self.exog_names.insert(0, 'Intercept')
+            else:
+                self.exog_names = ['x' + str(x + 1) for x in range(self.nlvl)]
+        
+        if self.exog.shape[1] != len(self.exog_names):
+            raise ValueError("The length of `exog_names` should be equal to "\
+                             "the number of columns in `exog`.")
+        if self.endog.shape[1] != len(self.endog_names):
+            raise ValueError("The length of `endog_names` should be equal to "\
+                             "the number of columns in `endog`.")  
+        
+        # Calculate useful matrices:
+        self._XXinv, self._ProjImX = _calculate_XXinv_and_ProjImX(self.exog)
+        
+        self.nystrom = nystrom
+        if self.nystrom:
+            self.nobs = (n_landmarks if n_landmarks is not None 
+                         else min(self.nobs, self.nlvl * 30))
+            generators = (np.random.RandomState, np.random.Generator)
+            if isinstance(random_gen, generators):
+                rnd_gen = random_gen
+            elif isinstance(random_gen, int):
+                rnd_gen = np.random.default_rng(random_gen)
+            else:
+                rnd_gen = np.random
+            h_ii = diag(self._ProjImX)
+            ny_ind = rnd_gen.choice(np.arange(self.exog.shape[0]), size=self.nobs,
+                                    p=h_ii/h_ii.sum(), replace=False)
+            ny_ind.sort()
+            self.exog = self.exog[ny_ind]
+            self.endog = self.endog[ny_ind]
+            if isinstance(self.meta, (pd.Series, pd.DataFrame)):
+                self.meta = self.meta.iloc[ny_ind]
+            else:
+                self.meta = self.meta[ny_ind]
+            self.index = self.index[ny_ind]
+            self._XXinv, self._ProjImX = _calculate_XXinv_and_ProjImX(self.exog)        
+        self._ProjImXorthogonal = eye(self.nobs) - self._ProjImX
+        
+    def _diagonalize_residual_covariance(self, K):
+        """
+        Computes the spectral decomposition of a matrix that shares the 
+        spectrum with the residual covariance operator. A normalized version of
+        the eigenvectors is stored since it is used in all calculations.
+        
+        """
+        Kresidual = 1 / self.nobs * multi_dot([self._ProjImXorthogonal,
+                                               K, self._ProjImXorthogonal])
+        sp, ev = ordered_eigsy(Kresidual)
+        sp_power = -1/2 if self.nystrom else -1
+        sp12 = sp ** sp_power * self.nobs ** (-1/2)
+        to_ignore = sp12.isnan()
+        sp12 = sp12[~to_ignore]
+        U = sp12 * ev[:,~to_ignore]
+        U_norm = matmul(self._ProjImXorthogonal, U)
+        return sp, U_norm
+        
 class AOV:
     """
     A class implementing Kernel Analysis Of Variance.
@@ -225,30 +412,28 @@ class AOV:
     kernel_median_coef : float, optional
         Multiple of the median to compute bandwidth if `kernel_bandwidth='median'`.
         The default is 1. 
+    nystrom : bool, optional
+        If True, computes the Nystrom landmarks, in which case the observations
+        in all attributes correspond to the landmarks and not the original data.
+        The default is False.
+    n_landmarks: int, optional
+        Number of landmarks used in the Nystrom method. If unspecified, one
+        fifth of the observations are selected as landmarks.
+    random_gen :  int, Generator, RandomState instance or None
+        Determines random number generation for the landmarks selection. 
+        If None (default), the generator is the RandomState instance used 
+        by `np.random`. To ensure the results are reproducible, pass an int
+        to instanciate the seed, or a Generator/RandomState instance (recommended).
 
     Attributes:
     ----------
-    endog : 2-d torch.tensor
-        A tensor with dimensions nobs x nvar containing nobs values of 
-        nvar dependent variables.
-    exog : 2-d torch.tensor
-        A tensor with dimensions nobs x nlvl containing nobs values of 
-        nlvl independent variables.
-    meta : None or 2-d array_like
-        An array_like with the metadata for the dataset, i.e. containing
-        information on factors. Used for visualizations. The default is None.
-    nobs : int
-        Number of observations.
-    nlvl : int
-        Number of independent variables (i.e. levels of all factors).
-    nvar : int
-        Number of dependent variables.
-    index : 1-d array_like
-        Observation labels.
-    endog_names : 1-d array_like
-        A 1-dimensional array_like containing names of the dependent variables.
-    exog_names : 1-d array_like
-        A 1-dimensional array_like containing names of the independent variables.
+    data : instance of class Data
+        Contains various information on the original dataset, see the 
+        documentation of the class Data for more details.
+    data_nystrom : None or instance of class Data
+        Contains various information on the Nystrom dataset, see the 
+        documentation of the class Data for more details. If None, Nystrom is
+        not taken into account in the computations.
     kernel_function : callable or str, optional
         Specifies the kernel function.
     kernel_bandwidth : 'median' or float, optional
@@ -268,38 +453,17 @@ class AOV:
 
     """
     def __init__(self, endog, exog, meta=None, endog_names=None, exog_names=None,
+                 nystrom=False, n_landmarks=None, random_gen=None,
                  kernel_function='gauss', kernel_bandwidth='median',
                  kernel_median_coef=1):
-        self.exog = convert_to_torch(exog)
-        self.endog = convert_to_torch(endog)
-        self.meta = meta
-        self.nobs = self.exog.shape[0]
-        self.nlvl = self.exog.shape[1]
-        self.nvar = self.endog.shape[1]
-        self.index = exog.index if hasattr(exog, "index") else range(self.nobs)
-        if endog_names is not None:
-            self.endog_names = endog_names
-        elif hasattr(endog, "columns"):
-            self.endog_names = endog.columns
-        else:
-            self.endog_names = ['y' + str(x) for x in range(self.nvar)]
-        if exog_names is not None:
-            self.exog_names = exog_names
-        elif hasattr(exog, "columns"):
-            self.exog_names = exog.columns
-        else:
-            if hasattr(self, '_factor_info') and 'Intercept' in self._factor_info:
-                self.exog_names = ['x' + str(x + 1) for x in range(self.nlvl - 1)]
-                self.exog_names.insert(0, 'Intercept')
-            else:
-                self.exog_names = ['x' + str(x + 1) for x in range(self.nlvl)]
-        
-        if self.exog.shape[1] != len(self.exog_names):
-            raise ValueError("The length of `exog_names` should be equal to "\
-                             "the number of columns in `exog`.")
-        if self.endog.shape[1] != len(self.endog_names):
-            raise ValueError("The length of `endog_names` should be equal to "\
-                             "the number of columns in `endog`.")  
+        self.data = Data(endog, exog, meta=meta, endog_names=endog_names, 
+                         exog_names=exog_names)
+        ### Nystrom:
+        self.data_nystrom = None
+        if nystrom:
+            self.data_nystrom = Data(endog, exog, meta=meta, endog_names=endog_names, 
+                                     exog_names=exog_names, nystrom=True, 
+                                     n_landmarks=n_landmarks, random_gen=random_gen)
         
         ### Kernel:
         self.kernel_function = kernel_function
@@ -308,7 +472,7 @@ class AOV:
         
         if self.kernel_function == 'gauss':
             (self.kernel,
-             self.computed_bandwidth) = gauss_kernel_median(x=self.endog,
+             self.computed_bandwidth) = gauss_kernel_median(x=self.data.endog,
                                                             bandwidth=kernel_bandwidth,  
                                                             median_coef=kernel_median_coef,
                                                             return_bandwidth=True)
@@ -317,22 +481,12 @@ class AOV:
         else:
             self.kernel = self.kernel_function
         
-        ### Calculate useful matrices:
-        XX = matmul(self.exog.T, self.exog)
-        sp, ev = ordered_eigsy(XX)
-        # Cut off the spectrum since the matrix is not full rank:
-        cutoff = np.linalg.matrix_rank(self.exog)
-        sp = sp[: cutoff]
-        ev = ev[:, : cutoff]
-        self._XXinv = multi_dot([ev, diag(sp ** -1), ev.T])
-        self._ProjImX = multi_dot([self.exog, self._XXinv, self.exog.T])
-        self._ProjImXorthogonal = eye(self.nobs) - self._ProjImX
-        
         # Diagnostics:
         self.diagnostics = None
         
     @classmethod
     def from_formula(cls, formula, data, kernel_function='gauss', 
+                     nystrom=False, n_landmarks=None, random_gen=None,
                      kernel_bandwidth='median', kernel_median_coef=1):
         """
         Creates a kernel linear model from a formula and a dataframe.
@@ -376,7 +530,9 @@ class AOV:
             s2 = ', OneHot)'
             exog.columns = [col.replace(s1, '').replace(s2, '') for col in exog.columns]
             
-        aov_obj = cls(endog, exog, meta=meta, kernel_function=kernel_function, 
+        aov_obj = cls(endog, exog, meta=meta, nystrom=nystrom, 
+                      n_landmarks=n_landmarks, random_gen=random_gen,
+                      kernel_function=kernel_function, 
                       kernel_bandwidth=kernel_bandwidth,
                       kernel_median_coef=kernel_median_coef)
         aov_obj.formula = formula
@@ -386,23 +542,6 @@ class AOV:
             aov_obj._factor_info = {_name.replace(s1, '').replace(s2, '') : _slice
                                        for _name, _slice in aov_obj._factor_info.items()}
         return aov_obj
-
-    def _diagonalize_residual_covariance(self, K):
-        """
-        Computes the spectral decomposition of a matrix that shares the 
-        spectrum with the residual covariance operator. A normalized version of
-        the eigenvectors is stored since it is used in all calculations.
-        
-        """
-        Kresidual = 1 / self.nobs * multi_dot([self._ProjImXorthogonal,
-                                               K, self._ProjImXorthogonal])
-        sp, ev = ordered_eigsy(Kresidual)
-        sp12 = sp ** (-1) * self.nobs ** (-1/2)
-        to_ignore = sp12.isnan()
-        sp12 = sp12[~to_ignore]
-        U = sp12 * ev[:,~to_ignore]
-        U_norm = matmul(self._ProjImXorthogonal, U)
-        return sp, U_norm
     
     def compute_diagnostics(self, t_max=100):
         """
@@ -422,19 +561,19 @@ class AOV:
             Maximal truncation for projections calculation, the default is 100.
 
         """
-        K = self.kernel(self.endog) 
-        sp, U_norm = self._diagonalize_residual_covariance(K)
-        t_max = min(t_max, self.nobs)
+        K = self.kernel(self.data.endog)
+        sp, U_norm = self.data._diagonalize_residual_covariance(K)
+        t_max = min(t_max, self.data.nobs)
         U_norm_T = U_norm[:, : t_max]
         
         columns = list(range(1, t_max + 1))
         U_norm_p12 = sp[:t_max] ** (1/2) * U_norm_T
         embeddings = pd.DataFrame(multi_dot([K, U_norm_p12]), 
-                                  index=self.index, columns=columns)
-        predictions = pd.DataFrame(multi_dot([self._ProjImX, K, U_norm_p12]),
-                                   index=self.index, columns=columns)
-        residuals = pd.DataFrame(multi_dot([self._ProjImXorthogonal, K, U_norm_p12]),
-                                 index=self.index, columns=columns)
+                                  index=self.data.index, columns=columns)
+        predictions = pd.DataFrame(multi_dot([self.data._ProjImX, K, U_norm_p12]),
+                                   index=self.data.index, columns=columns)
+        residuals = pd.DataFrame(multi_dot([self.data._ProjImXorthogonal, K, U_norm_p12]),
+                                 index=self.data.index, columns=columns)
         self.diagnostics = {'Embeddings' : embeddings,
                             'Predictions' : predictions,
                             'Residuals' : residuals}
@@ -485,7 +624,7 @@ class AOV:
         if not self.diagnostics or t not in self.diagnostics['Predictions']:
             self.compute_diagnostics(t_max=max(t, t_max))
             
-        factors = self.meta.columns
+        factors = self.data.meta.columns
         nb_factors = len(factors)
         T_max = len(self.diagnostics['Predictions'].columns)
         t = min(t, T_max)
@@ -493,7 +632,7 @@ class AOV:
         a, b = pred[t].min(), pred[t].max()
         x = np.arange(a - (b - a) / 10, b + (b - a) / 10, (b - a) / 12)
         
-        combs = list(itertools.product(*[self.meta[c].unique() for c in self.meta.columns]))
+        combs = list(itertools.product(*[self.data.meta[c].unique() for c in self.data.meta.columns]))
         
         if diagnostic == 'residuals':
             diagn = self.diagnostics['Residuals']
@@ -510,14 +649,14 @@ class AOV:
         medianprops = dict(linewidth=0.75, color='black', alpha=alpha)
         whiskerprops = dict(linewidth=0.75, alpha=alpha)
         for f, factor in enumerate(factors):
-            factor_lvls = self.meta[factor].unique()
+            factor_lvls = self.data.meta[factor].unique()
             cmap = colormaps[colormap]
             colors = cmap(np.linspace(0.1, 0.9, len(factor_lvls)))
             ax = axs if nb_factors == 1 else axs[f]
             ax.plot(x, y, color='black', lw=.8, linestyle='--')
             ax.set_xlim(a - (b - a) / 10, b + (b - a) / 10)
             for c in combs:
-                c_obs = (self.meta == c).all(axis=1)
+                c_obs = (self.data.meta == c).all(axis=1)
                 if c_obs.sum() > 0:
                     color_ind = np.intersect1d(factor_lvls, c, return_indices=True)[1]
                     bp = ax.boxplot(diagn[t][c_obs], positions=pred[t][c_obs].unique(),
@@ -595,15 +734,15 @@ class AOV:
                               "is highly recommended.")
                 self._factor_info = {'Factor' : slice(0, None, None)}
             for _name, _slice in self._factor_info.items():
-                lvls = self.exog_names[_slice]
-                DI = DesignInfo(self.exog_names)
+                lvls = self.data.exog_names[_slice]
+                DI = DesignInfo(self.data.exog_names)
                 if hypotheses_type == 'one-vs-all' or (test_intercept and _name != 'Intercept'):
                     if true_proportions:
-                        proportions = (np.array(self.exog.sum(axis=0, 
+                        proportions = (np.array(self.data.exog.sum(axis=0, 
                                                               dtype=int)[_slice])
                                        .astype(str))
                         lvls_p =  [proportions[i] + ' * ' + lvls[i] for i in range(len(lvls))]
-                        factor_mean = '(' + ' + '.join(lvls_p) + f') / {self.nobs}'
+                        factor_mean = '(' + ' + '.join(lvls_p) + f') / {self.data.nobs}'
                     else:
                         factor_mean = '(' + ' + '.join(lvls) + f') / {len(lvls)}'
                 if not by_level:
@@ -639,7 +778,7 @@ class AOV:
                     self._factor_info = {'Factor' : slice(0, None, None)}
                 hypotheses = []
                 for _name, _slice in self._factor_info.items():
-                    L = eye(self.nlvl, dtype=float64)[_slice, :]
+                    L = eye(self.data.nlvl, dtype=float64)[_slice, :]
                     if 'Intercept' not in self._factor_info:
                         L = L[1:]
                     hypotheses.append([_name, L])
@@ -647,7 +786,7 @@ class AOV:
                     raise ValueError("Incompatible combination: "
                                      "`test_intercept=True` and `hypotheses=None`.")
             else:
-                hypotheses = list(zip(self.exog_names, eye(self.nlvl, dtype=float64)))
+                hypotheses = list(zip(self.data.exog_names, eye(self.data.nlvl, dtype=float64)))
                 if test_intercept:
                     raise ValueError("Incompatible combination: "
                                      "`test_intercept=True` and `hypotheses=None`.")
@@ -659,7 +798,7 @@ class AOV:
         transformation of the design matrix X and the contrast matrix L.
         
         """
-        LXXL = multi_dot([L, self._XXinv, L.T])
+        LXXL = multi_dot([L, self.data._XXinv, L.T])
         LXXLinv = tensor([[LXXL**-1]]) if len(LXXL.shape) == 0 else LXXL.inverse()
         return LXXLinv
     
@@ -671,18 +810,38 @@ class AOV:
         """
         LXXLinv = self._compute_LXXLinv(L)
         A = multi_dot([L.T, LXXLinv, L])
-        D = multi_dot([self.exog, self._XXinv, A, self._XXinv, self.exog.T])
-        return D        
+        D = multi_dot([self.data.exog, self.data._XXinv, A, self.data._XXinv, self.data.exog.T])
+        return D       
     
-    def _compute_K_T(self, t_max=100):
+    def _diagonalize_covariance_of_anchor_projected_residuals(self, anchors):
+        """
+        Computes the kernel trick version of the covariance operator associated
+        with the residuals projected onto the Nystrom anchors. Returns its
+        eigendecomposition.
+
+        """
+        K_YZ = self.kernel(self.data.endog, self.data_nystrom.endog)
+        K_anchor_projected = multi_dot([anchors.T, K_YZ.T,
+                                        self.data._ProjImXorthogonal,
+                                        K_YZ, anchors])
+        K_anchor_projected *= (1/self.data.nobs)
+        return ordered_eigsy(K_anchor_projected)
+    
+    def _compute_K_T(self, t_max=100, n_anchors=None):
         """
         Intermediate quantity used in statistics calculations, based on a 
         transformation of the gram matrix K.
         
         """
-        K = self.kernel(self.endog) 
-        sp, U_norm = self._diagonalize_residual_covariance(K)
-        t_max = min(t_max, self.nobs)
+        data = self.data_nystrom if self.data_nystrom is not None else self.data
+        K = self.kernel(data.endog)
+        _, U_norm = data._diagonalize_residual_covariance(K)
+        if self.data_nystrom is not None:
+            norm_anchors = U_norm[:, : n_anchors]
+            sp_a, U_a = self._diagonalize_covariance_of_anchor_projected_residuals(norm_anchors)
+            U_norm = multi_dot([norm_anchors, (sp_a ** (-1/2) * U_a)])
+            K = self.kernel(self.data_nystrom.endog, self.data.endog)
+        t_max = min(t_max, self.data.nobs)
         U_norm_T = U_norm[:, : t_max]
         K_T = multi_dot([U_norm_T.T, K])
         return K_T
@@ -737,10 +896,10 @@ class AOV:
         ev = ev[:, : cutoff]
         norm = diag(multi_dot([ev.T, K_T, D, K, D, K_T.T, ev]))
         norm = pow(norm, -1/2)
-        centering_mat = ones((self.nobs, self.nobs), dtype=float64) / self.nobs
+        centering_mat = ones((self.data.nobs, self.data.nobs), dtype=float64) / self.data.nobs
         K_ = K - matmul(K, centering_mat) if center else K
         proj = norm * multi_dot([ev.T, K_T, D, K_]).T
-        proj = pd.DataFrame(proj, index=self.index)
+        proj = pd.DataFrame(proj, index=self.data.index)
         proj.columns += 1
         return proj
     
@@ -765,20 +924,20 @@ class AOV:
             operator.
             
         """
-        W = multi_dot([self.exog, self._XXinv, L.T])
+        W = multi_dot([self.data.exog, self.data._XXinv, L.T])
         LXXLinv = self._compute_LXXLinv(L)
         coef_D = diag(multi_dot([W, LXXLinv, W.T]))
-        one_minus_hii = (1 - diag(self._ProjImX))
+        one_minus_hii = (1 - diag(self.data._ProjImX))
         coef_D /= (one_minus_hii ** 2 * L.shape[0])
         K_T = self._compute_K_T(t_max=t_max)
 
         cook_distances = {}
         for t in range(1,t_max + 1):
-            cook_traces = diag(multi_dot([self._ProjImXorthogonal, K_T[:t].T, 
-                                          K_T[:t], self._ProjImXorthogonal]))
+            cook_traces = diag(multi_dot([self.data._ProjImXorthogonal, K_T[:t].T, 
+                                          K_T[:t], self.data._ProjImXorthogonal]))
             cook_distances[t] = (cook_traces * coef_D).numpy()
             
-        cook_distances = pd.DataFrame(cook_distances, index=self.index)
+        cook_distances = pd.DataFrame(cook_distances, index=self.data.index)
         return(cook_distances)
     
     def correct_pvalues(self, pvalues, correction='bonferroni', by_level=False):
@@ -792,7 +951,7 @@ class AOV:
             that are tested and lines indicate truncation levels.
         correction : str, optional
             Relevent for multiple test comparisons, in particular when 
-            by_level=True. If 'bonferroni' (default), permorms the Bonferroni 
+            `by_level=True`. If 'bonferroni' (default), permorms the Bonferroni 
             correction of the p-values. If 'BH', perfoms the Benjamini–Hochberg 
             correction.
         by_level : by_level : bool, optional
@@ -814,7 +973,7 @@ class AOV:
         
     def test(self, hypotheses='pairwise', hypotheses_subset=None,
              by_level=False, t_max=100, correction=None, test_intercept=False, 
-             true_proportions=False, center_projections=True, verbose=0):
+             true_proportions=False, center_projections=True, verbose=0, n_anchors=None):
         """
         Performs kernel hypothesis tests for the given model. Simultaneously 
         calculates projections on the associated discriminant axes as well as
@@ -863,6 +1022,9 @@ class AOV:
         center_projections : bool, optional
             If True (default), the projections are centered with respect to
             the factor mean.
+        n_anchors : int, optional
+            Number of anchors used in the Nystrom method. If None, the value is
+            set at `t_max`.
         verbose : int, optional
             The higher the verbosity, the more messages keeping track of 
             computations. The default is 0.
@@ -878,8 +1040,10 @@ class AOV:
         """
         if verbose > 0:
             print('-Computing the Gram matrix...')
-        K = self.kernel(self.endog) 
-        K_T = self._compute_K_T(t_max=t_max)
+        K = self.kernel(self.data.endog)
+        if n_anchors is None:
+            n_anchors = t_max
+        K_T = self._compute_K_T(t_max=t_max, n_anchors=n_anchors)
         if verbose > 0:
             print('-Testing hypotheses:')
         hyps = self.set_hypotheses(hypotheses=hypotheses, by_level=by_level, 
@@ -893,8 +1057,8 @@ class AOV:
         if correction is not None:
             corrected_pvals_dict = {}
         # Get factor dummies to add the factor information to the data frames:
-        factor_dummies = pd.DataFrame(self.exog.numpy().astype(int),
-                                      columns=self.exog_names, index=self.index)
+        factor_dummies = pd.DataFrame(self.data.exog.numpy().astype(int),
+                                      columns=self.data.exog_names, index=self.data.index)
         it = tqdm(range(len(hyps))) if verbose > 0 else range(len(hyps))
         for i in it:
             name, L = hyps[i]
@@ -902,7 +1066,7 @@ class AOV:
                 print('\n')
                 print(f'-Testing {name}...')
             if any(isinstance(l, str) for l in L):
-                L = DesignInfo(self.exog_names).linear_constraint(L).coefs
+                L = DesignInfo(self.data.exog_names).linear_constraint(L).coefs
                 L = convert_to_torch(L)
             L = L.unsqueeze(0) if L.dim() == 1 else L
             D = self._compute_D(L)
@@ -935,7 +1099,7 @@ class AOV:
                     if hypotheses == 'one-vs-all':
                         _slice = [s for f, s in self._factor_info.items() if f in name][0]
                     else:
-                        _slice = [i for i, en in enumerate(self.exog_names) if en in name]
+                        _slice = [i for i, en in enumerate(self.data.exog_names) if en in name]
                     dummies_factor_i = factor_dummies.iloc[:, _slice]
                     # Case of interaction effects:
                     if ':' in name:
@@ -1120,10 +1284,13 @@ class KernelAOVResults():
                 min_scaled = min_proj - 0.1 * (max_proj - min_proj)
                 max_scaled = max_proj + 0.1 * (max_proj - min_proj)
                 x = np.linspace(min_scaled, max_scaled, 200)
-                density = gaussian_kde(lvl_proj, bw_method=.2)
-                y = density(x)                
-                ax.plot(x, y, color=colors[i], lw=2)
-                ax.fill_between(x, y, y2=0, color=colors[i], label=test_lvl, alpha=alpha)
+                try:
+                    density = gaussian_kde(lvl_proj, bw_method=.2)
+                    y = density(x)                
+                    ax.plot(x, y, color=colors[i], lw=2)
+                    ax.fill_between(x, y, y2=0, color=colors[i], label=test_lvl, alpha=alpha)
+                except ValueError:
+                    pass
             if not no_lvl_info:
                 ax.legend(bbox_to_anchor=(1.01, 0.5), loc='center left',
                           fontsize=legend_fontsize)
