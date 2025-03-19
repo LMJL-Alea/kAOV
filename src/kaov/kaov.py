@@ -233,7 +233,7 @@ class OneHot(object):
     
 class Data:
     """
-    A class implementing...
+    Class containing data-related structures for the kernel analysis of variance.
     
     Parameters
     ----------
@@ -379,7 +379,7 @@ class Data:
         
 class AOV:
     """
-    A class implementing Kernel Analysis Of Variance.
+    Class implementing Kernel Analysis Of Variance.
     
     Parameters
     ----------
@@ -1125,7 +1125,7 @@ class AOV:
     
 class KernelAOVResults():
     """
-    A class implementing Kernel Analysis Of Variance.
+    Class implementing Kernel Analysis Of Variance.
     
     Parameters
     ----------
