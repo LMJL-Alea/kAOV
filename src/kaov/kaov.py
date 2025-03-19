@@ -255,17 +255,17 @@ class Data:
         If not specified (default), will be retrieved from `exog` or assigned 
         to numbers with respect to the order.
     nystrom : bool, optional
-        If True, computes the Nystrom landmarks, in which case all 
-        attributes correspond to the landmarks and not the original data.
+        If True, computes the Nystrom landmarks, in which case the observations
+        in all attributes correspond to the landmarks and not the original data.
         The default is False.
     n_landmarks: int, optional
         Number of landmarks used in the Nystrom method. If unspecified, one
         fifth of the observations are selected as landmarks.
-    random_state :  int, RandomState instance or None
+    random_gen :  int, Generator, RandomState instance or None
         Determines random number generation for the landmarks selection. 
         If None (default), the generator is the RandomState instance used 
         by `np.random`. To ensure the results are reproducible, pass an int
-        to instanciate the seed, or a RandomState instance (recommended).
+        to instanciate the seed, or a Generator/RandomState instance (recommended).
 
     Attributes:
     ----------
@@ -279,7 +279,8 @@ class Data:
         An array_like with the metadata for the dataset, i.e. containing
         information on factors. Used for visualizations. The default is None.
     nobs : int
-        Number of observations.
+        Number of observations. If `nystrom=True`, corresponds to the number 
+        of landmarks `n_landmarks`.
     nlvl : int
         Number of independent variables (i.e. levels of all factors).
     nvar : int
@@ -290,10 +291,14 @@ class Data:
         A 1-dimensional array_like containing names of the dependent variables.
     exog_names : 1-d array_like
         A 1-dimensional array_like containing names of the independent variables.
+    nystrom : bool
+        False by default, True if the Nystrom approximation is performed, in 
+        which case the observations in all attributes correspond to the 
+        landmarks and not the original data.
 
     """
     def __init__(self, endog, exog, meta=None, endog_names=None, exog_names=None,
-                 nystrom=False, n_landmarks=None, random_state=None):
+                 nystrom=False, n_landmarks=None, random_gen=None):
         self.exog = convert_to_torch(exog)
         self.endog = convert_to_torch(endog)
         self.meta = meta
@@ -334,11 +339,10 @@ class Data:
             self.nobs = (n_landmarks if n_landmarks is not None 
                          else min(self.nobs, self.nlvl * 30))
             generators = (np.random.RandomState, np.random.Generator)
-            # TODO: replace random_state by generator in docs and stuff
-            if isinstance(random_state, generators):
-                rnd_gen = random_state
-            elif isinstance(random_state, int):
-                rnd_gen = np.random.default_rng(random_state)
+            if isinstance(random_gen, generators):
+                rnd_gen = random_gen
+            elif isinstance(random_gen, int):
+                rnd_gen = np.random.default_rng(random_gen)
             else:
                 rnd_gen = np.random
             h_ii = diag(self._ProjImX)
@@ -408,6 +412,18 @@ class AOV:
     kernel_median_coef : float, optional
         Multiple of the median to compute bandwidth if `kernel_bandwidth='median'`.
         The default is 1. 
+    nystrom : bool, optional
+        If True, computes the Nystrom landmarks, in which case the observations
+        in all attributes correspond to the landmarks and not the original data.
+        The default is False.
+    n_landmarks: int, optional
+        Number of landmarks used in the Nystrom method. If unspecified, one
+        fifth of the observations are selected as landmarks.
+    random_gen :  int, Generator, RandomState instance or None
+        Determines random number generation for the landmarks selection. 
+        If None (default), the generator is the RandomState instance used 
+        by `np.random`. To ensure the results are reproducible, pass an int
+        to instanciate the seed, or a Generator/RandomState instance (recommended).
 
     Attributes:
     ----------
@@ -437,7 +453,7 @@ class AOV:
 
     """
     def __init__(self, endog, exog, meta=None, endog_names=None, exog_names=None,
-                 nystrom=False, n_landmarks=None, random_state=None,
+                 nystrom=False, n_landmarks=None, random_gen=None,
                  kernel_function='gauss', kernel_bandwidth='median',
                  kernel_median_coef=1):
         self.data = Data(endog, exog, meta=meta, endog_names=endog_names, 
@@ -447,7 +463,7 @@ class AOV:
         if nystrom:
             self.data_nystrom = Data(endog, exog, meta=meta, endog_names=endog_names, 
                                      exog_names=exog_names, nystrom=True, 
-                                     n_landmarks=n_landmarks, random_state=random_state)
+                                     n_landmarks=n_landmarks, random_gen=random_gen)
         
         ### Kernel:
         self.kernel_function = kernel_function
@@ -470,7 +486,7 @@ class AOV:
         
     @classmethod
     def from_formula(cls, formula, data, kernel_function='gauss', 
-                     nystrom=False, n_landmarks=None, random_state=None,
+                     nystrom=False, n_landmarks=None, random_gen=None,
                      kernel_bandwidth='median', kernel_median_coef=1):
         """
         Creates a kernel linear model from a formula and a dataframe.
@@ -515,7 +531,7 @@ class AOV:
             exog.columns = [col.replace(s1, '').replace(s2, '') for col in exog.columns]
             
         aov_obj = cls(endog, exog, meta=meta, nystrom=nystrom, 
-                      n_landmarks=n_landmarks, random_state=random_state,
+                      n_landmarks=n_landmarks, random_gen=random_gen,
                       kernel_function=kernel_function, 
                       kernel_bandwidth=kernel_bandwidth,
                       kernel_median_coef=kernel_median_coef)
@@ -798,6 +814,12 @@ class AOV:
         return D       
     
     def _diagonalize_covariance_of_anchor_projected_residuals(self, anchors):
+        """
+        Computes the kernel trick version of the covariance operator associated
+        with the residuals projected onto the Nystrom anchors. Returns its
+        eigendecomposition.
+
+        """
         K_YZ = self.kernel(self.data.endog, self.data_nystrom.endog)
         K_anchor_projected = multi_dot([anchors.T, K_YZ.T,
                                         self.data._ProjImXorthogonal,
@@ -929,7 +951,7 @@ class AOV:
             that are tested and lines indicate truncation levels.
         correction : str, optional
             Relevent for multiple test comparisons, in particular when 
-            by_level=True. If 'bonferroni' (default), permorms the Bonferroni 
+            `by_level=True`. If 'bonferroni' (default), permorms the Bonferroni 
             correction of the p-values. If 'BH', perfoms the Benjamini–Hochberg 
             correction.
         by_level : by_level : bool, optional
@@ -1000,6 +1022,9 @@ class AOV:
         center_projections : bool, optional
             If True (default), the projections are centered with respect to
             the factor mean.
+        n_anchors : int, optional
+            Number of anchors used in the Nystrom method. If None, the value is
+            set at `t_max`.
         verbose : int, optional
             The higher the verbosity, the more messages keeping track of 
             computations. The default is 0.
@@ -1016,6 +1041,8 @@ class AOV:
         if verbose > 0:
             print('-Computing the Gram matrix...')
         K = self.kernel(self.data.endog)
+        if n_anchors is None:
+            n_anchors = t_max
         K_T = self._compute_K_T(t_max=t_max, n_anchors=n_anchors)
         if verbose > 0:
             print('-Testing hypotheses:')
@@ -1257,10 +1284,13 @@ class KernelAOVResults():
                 min_scaled = min_proj - 0.1 * (max_proj - min_proj)
                 max_scaled = max_proj + 0.1 * (max_proj - min_proj)
                 x = np.linspace(min_scaled, max_scaled, 200)
-                density = gaussian_kde(lvl_proj, bw_method=.2)
-                y = density(x)                
-                ax.plot(x, y, color=colors[i], lw=2)
-                ax.fill_between(x, y, y2=0, color=colors[i], label=test_lvl, alpha=alpha)
+                try:
+                    density = gaussian_kde(lvl_proj, bw_method=.2)
+                    y = density(x)                
+                    ax.plot(x, y, color=colors[i], lw=2)
+                    ax.fill_between(x, y, y2=0, color=colors[i], label=test_lvl, alpha=alpha)
+                except ValueError:
+                    pass
             if not no_lvl_info:
                 ax.legend(bbox_to_anchor=(1.01, 0.5), loc='center left',
                           fontsize=legend_fontsize)
