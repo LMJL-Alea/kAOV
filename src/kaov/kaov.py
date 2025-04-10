@@ -659,7 +659,7 @@ class AOV:
                 c_obs = (self.data.meta == c).all(axis=1)
                 if c_obs.sum() > 0:
                     color_ind = np.intersect1d(factor_lvls, c, return_indices=True)[1]
-                    bp = ax.boxplot(diagn[t][c_obs], positions=pred[t][c_obs].unique(),
+                    bp = ax.boxplot(diagn[t][c_obs], positions=pred.round(5)[t][c_obs].unique(),
                                     widths=(b - a) / len(combs), patch_artist=True,
                                     manage_ticks=False, medianprops=medianprops,
                                     whiskerprops=whiskerprops)
