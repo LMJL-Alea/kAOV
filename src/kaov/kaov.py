@@ -1174,7 +1174,8 @@ class KernelAOVResults():
         
     def _summary_obj(self, t_max=5):
         """
-        Creates a summary object to display a summary of the test.
+        Creates a summary object to display a summary of the test (one block
+        per test).
 
         Parameters
         ----------
@@ -1202,9 +1203,41 @@ class KernelAOVResults():
             summ.add_df(df, float_format=float_format)
         return summ
     
-    def summary(self, t_max=5):
+    def _summary_obj2(self, t_max=3):
         """
-        Prints a summary of the test.
+        Creates a summary object to display a summary of the test (one block
+        per truncation).
+
+        Parameters
+        ----------
+        t_max : int, optional
+            Maximal truncation to display. The default is 3.
+
+        Returns
+        -------
+        An instance of statsmodels.iolib.summary2
+
+        """
+        summ = summary2.Summary()
+        summ.add_title('Kernel Analysis of Variance')
+        for t in range(1, t_max + 1):
+            summ.add_dict({'': ''})
+            dict_t = {key : self.stats[key].loc[t] for key in self.stats.keys()}
+            df = pd.DataFrame(dict_t).transpose()
+            max_str_len = max(df.index.str.len())
+            df.index = ['| ' + ' ' * (max_str_len - len(ind)) + ind for ind in df.index]
+            df = df.reset_index()
+            c = list(df.columns)
+            c[0] = f'Truncation {t} |' + ' ' * (max_str_len + 1)
+            df.columns = c
+            df.index = ['', ] * len(df.index)
+            float_format = '%.3f'
+            summ.add_df(df, float_format=float_format)
+        return summ
+    
+    def summary1(self, t_max=5):
+        """
+        Prints a summary of the test (old version).
 
         Parameters
         ----------
@@ -1214,9 +1247,22 @@ class KernelAOVResults():
         """
         _sum_obj = self._summary_obj(t_max=t_max)
         print(_sum_obj)
+    
+    def summary(self, t_max=3):
+        """
+        Prints a summary of the test (new version).
+
+        Parameters
+        ----------
+        t_max : int, optional
+            Maximal truncation to display. The default is 3.
+
+        """
+        _sum_obj = self._summary_obj2(t_max=t_max)
+        print(_sum_obj)
         
     def __str__(self):
-        return self._summary_obj().__str__()
+        return self._summary_obj2().__str__()
     
     def plot_density(self, t=100, tests=None, colormap='viridis', alpha=.5,
                      legend_fontsize=12, font_family='serif', figsize=None):
