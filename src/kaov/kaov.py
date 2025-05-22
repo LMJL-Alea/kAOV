@@ -12,7 +12,7 @@ import numpy as np
 import pandas as pd
 from statsmodels.iolib import summary2
 from patsy import dmatrices, DesignInfo, ContrastMatrix
-from scipy.stats import chi2, gaussian_kde
+from scipy.stats import chi2, f, gaussian_kde
 import matplotlib.pyplot as plt
 from matplotlib import rc, colormaps
 from torch import cdist, exp, matmul, diag, trace, sqrt, pow, cat
@@ -846,7 +846,7 @@ class AOV:
         K_T = multi_dot([U_norm_T.T, K])
         return K_T
 
-    def _compute_kernel_HL_test_statistic(self, K_T, D, d, t_max=100):
+    def _compute_kernel_HL_test_statistic(self, K_T, D, d, t_max=100, f_norm=True):
         """
         Computes the truncated kernel Hotelling-Lawley test statistic based on
         some intermediate quantities.
@@ -856,9 +856,14 @@ class AOV:
         stats = []
         pvals = []
         for t in range(1,t_max):
-            stat = trace(K_T_D_K_T[:t,:t]).item()
+            norm_factor = ((self.data.nobs - self.data.nlvl) / (self.data.nobs * d * t)
+                           if f_norm else 1)
+            stat = trace(K_T_D_K_T[:t,:t]).item() * norm_factor
             stats += [stat]
-            pvals += [chi2.sf(stat,t * d)]
+            if f_norm:
+                pvals += [f.sf(stat, t * d, self.data.nobs - t * d)]
+            else:
+                pvals += [chi2.sf(stat, t * d)]
         return stats, pvals
     
     def project_on_discriminant(self, K, K_T, D, center=True):
@@ -973,7 +978,8 @@ class AOV:
         
     def test(self, hypotheses='pairwise', hypotheses_subset=None,
              by_level=False, t_max=100, correction=None, test_intercept=False, 
-             true_proportions=False, center_projections=True, verbose=0, n_anchors=None):
+             true_proportions=False, center_projections=True, verbose=0, 
+             n_anchors=None, f_norm=True):
         """
         Performs kernel hypothesis tests for the given model. Simultaneously 
         calculates projections on the associated discriminant axes as well as
@@ -1031,6 +1037,10 @@ class AOV:
             - < 1: no messages,
             - 1: progress bar with computation time,
             - 2: print tested hypothesis' name.
+        f_norm : bool, optional
+            If True (default), the test statistic is normalized and 
+            asymptotically follows an f-distribution. Otherwise, the original 
+            chi-2 version is returned.
 
         Returns
         -------
@@ -1071,7 +1081,8 @@ class AOV:
             L = L.unsqueeze(0) if L.dim() == 1 else L
             D = self._compute_D(L)
             stats, pvals = self._compute_kernel_HL_test_statistic(K_T, D, len(L), 
-                                                                 t_max=t_max)
+                                                                  t_max=t_max,
+                                                                  f_norm=f_norm)
             results_dict = {'TKHL' : stats,
                                'P-value' : pvals}
             results[name] = pd.DataFrame(results_dict)
