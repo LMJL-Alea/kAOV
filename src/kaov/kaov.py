@@ -835,13 +835,13 @@ class AOV:
         """
         data = self.data_nystrom if self.data_nystrom is not None else self.data
         K = self.kernel(data.endog)
-        _, U_norm = data._diagonalize_residual_covariance(K)
+        sp, U_norm = data._diagonalize_residual_covariance(K)
         if self.data_nystrom is not None:
             norm_anchors = U_norm[:, : n_anchors]
-            sp_a, U_a = self._diagonalize_covariance_of_anchor_projected_residuals(norm_anchors)
-            U_norm = multi_dot([norm_anchors, (sp_a ** (-1/2) * U_a)])
+            sp, U_a = self._diagonalize_covariance_of_anchor_projected_residuals(norm_anchors)
+            U_norm = multi_dot([norm_anchors, (sp ** (-1/2) * U_a)])
             K = self.kernel(self.data_nystrom.endog, self.data.endog)
-        t_max = min(t_max, self.data.nobs)
+        t_max = min(t_max, min((sp > 0).sum(), self.data.nobs))
         U_norm_T = U_norm[:, : t_max]
         K_T = multi_dot([U_norm_T.T, K])
         return K_T
