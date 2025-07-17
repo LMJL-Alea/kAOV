@@ -1036,7 +1036,8 @@ class AOV:
             computations. The default is 0.
             - < 1: no messages,
             - 1: progress bar with computation time,
-            - 2: print tested hypothesis' name.
+            - 2: print tested hypothesis' name, warnings are printed once,
+            - 3: warnings are printed every time they appear.
         f_norm : bool, optional
             If True (default), the test statistic is normalized and 
             asymptotically follows an f-distribution. Otherwise, the original 
@@ -1050,6 +1051,12 @@ class AOV:
         """
         if verbose > 0:
             print('-Computing the Gram matrix...')
+        if verbose <= 1:
+            warnings.simplefilter("ignore")
+        elif verbose == 2:
+            warnings.simplefilter("once")
+        else:
+            warnings.simplefilter("always")
         K = self.kernel(self.data.endog)
         if n_anchors is None:
             n_anchors = t_max
