@@ -979,7 +979,7 @@ class AOV:
     def test(self, hypotheses='pairwise', hypotheses_subset=None,
              by_level=False, t_max=100, correction=None, test_intercept=False, 
              true_proportions=False, center_projections=True, verbose=0, 
-             n_anchors=None, f_norm=True):
+             n_anchors=None, f_norm=True, skip_projections_and_cook=False):
         """
         Performs kernel hypothesis tests for the given model. Simultaneously 
         calculates projections on the associated discriminant axes as well as
@@ -1042,6 +1042,10 @@ class AOV:
             If True (default), the test statistic is normalized and 
             asymptotically follows an f-distribution. Otherwise, the original 
             chi-2 version is returned.
+        skip_projections_and_cook : bool, optional
+            If False (default), projections on the discriminant axes as well as
+            Cook's distances will be computed. Set to True to avoid computing 
+            them if they are not needed, in order to reduce computation time.
 
         Returns
         -------
@@ -1099,36 +1103,37 @@ class AOV:
                 corrected_pvals_dict[name] = pvals
                 
             # Projections on discriminant axes and Cook's distances:
-            projections[name] = self.project_on_discriminant(K, K_T, D,
-                                                             center=center_projections)
-            cook_distances[name] = self.compute_cook_distances(L, t_max=t_max)
-            if not hasattr(self, 'formula'):
-                projections[name][name] = np.nan
-                cook_distances[name][name] = np.nan
-            elif name == 'Intercept' or hypotheses not in [None, 'pairwise', 'one-vs-all']:
-                pass
-            else:
-                # Adding factor information:
-                pd.options.mode.chained_assignment = None  # default='warn'
-                if not by_level: # specify all levels for all factors
-                    _slice = self._factor_info[name]
-                    dummies_factor_i = factor_dummies.iloc[:, _slice]
-                else: # specify only those levels that are relevant for a given test
-                    if hypotheses == 'one-vs-all':
-                        _slice = [s for f, s in self._factor_info.items() if f in name][0]
-                    else:
-                        _slice = [i for i, en in enumerate(self.data.exog_names) if en in name]
-                    dummies_factor_i = factor_dummies.iloc[:, _slice]
-                    # Case of interaction effects:
-                    if ':' in name:
-                        interaction_cols = dummies_factor_i.columns.str.contains(':')
-                        dummies_factor_i = dummies_factor_i.loc[:, interaction_cols]
-                    # Put NaN for the irrelevant levels (needed for visualizations)
-                    nan_obs = (dummies_factor_i.max(axis=1) == 0)
-                    dummies_factor_i['NaN'] = 0
-                    dummies_factor_i.loc[nan_obs, 'NaN'] = 2
-                projections[name][name] = dummies_factor_i.idxmax(axis=1)
-                cook_distances[name][name] = dummies_factor_i.idxmax(axis=1)
+            if not skip_projections_and_cook:
+                projections[name] = self.project_on_discriminant(K, K_T, D,
+                                                                 center=center_projections)
+                cook_distances[name] = self.compute_cook_distances(L, t_max=t_max)
+                if not hasattr(self, 'formula'):
+                    projections[name][name] = np.nan
+                    cook_distances[name][name] = np.nan
+                elif name == 'Intercept' or hypotheses not in [None, 'pairwise', 'one-vs-all']:
+                    pass
+                else:
+                    # Adding factor information:
+                    pd.options.mode.chained_assignment = None  # default='warn'
+                    if not by_level: # specify all levels for all factors
+                        _slice = self._factor_info[name]
+                        dummies_factor_i = factor_dummies.iloc[:, _slice]
+                    else: # specify only those levels that are relevant for a given test
+                        if hypotheses == 'one-vs-all':
+                            _slice = [s for f, s in self._factor_info.items() if f in name][0]
+                        else:
+                            _slice = [i for i, en in enumerate(self.data.exog_names) if en in name]
+                        dummies_factor_i = factor_dummies.iloc[:, _slice]
+                        # Case of interaction effects:
+                        if ':' in name:
+                            interaction_cols = dummies_factor_i.columns.str.contains(':')
+                            dummies_factor_i = dummies_factor_i.loc[:, interaction_cols]
+                        # Put NaN for the irrelevant levels (needed for visualizations)
+                        nan_obs = (dummies_factor_i.max(axis=1) == 0)
+                        dummies_factor_i['NaN'] = 0
+                        dummies_factor_i.loc[nan_obs, 'NaN'] = 2
+                    projections[name][name] = dummies_factor_i.idxmax(axis=1)
+                    cook_distances[name][name] = dummies_factor_i.idxmax(axis=1)
         # Correct p-values:
         if correction is not None:
             if verbose > 0:
