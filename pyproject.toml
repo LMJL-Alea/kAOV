@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "kAOV" 
-version = "1.1.2"
+version = "1.2.0"
 description = "Kernel Analysis of Variance"
 readme = "README.md"
 requires-python = ">=3.8"
@@ -13,20 +13,20 @@ license = {file = "LICENSE.txt"}
 keywords = ["kernel methods", "analysis of variance"]
 authors = [
   {name = "Polina Arsenteva", email = "polina.arsenteva@ens-lyon.fr" },
-  {name = "Anthony Ozier-Lafontaine", email = "antho.ozier.laf@gmail.com" }
+  {name = "Anthony Ozier-Lafontaine", email = "antho.ozier.laf@gmail.com" },
+  {name = "Ghislain Durif", email = "ghislain.durif@ens-lyon.fr"}
 ]
 maintainers = [
   {name = "Polina Arsenteva", email = "polina.arsenteva@ens-lyon.fr" }
 ]
 dependencies = [
-  "anthony_project_tools @ git+https://github.com/lereldarion/anthony_project_tools.git", 
-  "matplotlib", 
+  "matplotlib",
   "numpy < 2",
   "pandas",
   "scipy",
   "patsy",
-  "torch >= 2.2.0", 
+  "torch >= 2.2.0",
   "statsmodels >= 0.14.0",
-  "tqdm"
+  "tqdm",
 ]
 
