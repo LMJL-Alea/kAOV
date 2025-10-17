@@ -16,20 +16,38 @@ from scipy.stats import chi2, f, gaussian_kde
 import matplotlib.pyplot as plt
 from matplotlib import rc, colormaps
 from torch import cdist, exp, matmul, diag, trace, sqrt, pow, cat
-from torch import eye, ones, tensor, float64, from_numpy, Tensor
-from torch.linalg import multi_dot
-from apt.eigen_wrapper import eigsy
+from torch import eye, ones, tensor, float64, from_numpy, Tensor, finfo
+from torch.linalg import multi_dot, eigh
 
 
-def ordered_eigsy(matrix):
+def ordered_eigsy(matrix, eps=None, clip=True):
     """
     Calculates the eigendecomposition of the matrix, using a solver
     implemented in C++.
+
+    Eigen values and eigen vectors are stored by decreasing eigen value order.
+
+    Note 1: only positive non-null eigen values and corresponding eigen
+    vectors are returned. Eigen values lower than `eps` threshold a
+    clipped to zeros.
+
+    Note 2: input matrix is assumed to be symmetrical and positive
+    semi-definite, such that its eigen values are positive or null. It
+    may happen due to numerical issues that the eigen decomposition finds
+    negative eigen values for such matrix anyway. These are also clipped
+    to 0.
 
     Parameters
     ----------
     matrix : 2-d array_like
         Matrix to decompose.
+
+    eps : float, optional
+        minimum threshold value to clip lower eigen values to zeros.
+        If `None` (default), then machine precision (given by
+        `torch.finfo()`) for matrix dtype is used as threshold.
+    clip : boolean,
+        flag to enable/disable eigen value clipping.
 
     Returns
     -------
@@ -38,11 +56,35 @@ def ordered_eigsy(matrix):
     ev : torch.Tensor
         Eigenvectors.
     """
-    sp, ev = eigsy(matrix)
-    order = sp.argsort()[::-1]
-    ev = tensor(ev[:, order], dtype=float64)
-    sp = tensor(sp[order], dtype=float64)
-    return sp, ev
+    # eigen values, eigen vectors
+    # following ascending eigen value order (no need for sorting)
+    sp, ev = eigh(matrix)
+    # revert to get decreasing order for eigen values
+    sp = sp.flip(dims=(0,))
+    ev = ev.flip(dims=(1,))
+    # clipping?
+    if clip:
+        # eigen value clipping threshold
+        if eps is None:
+            eps = finfo(matrix.dtype).eps
+        # select non null eigen val
+        sp_mask = sp >= eps
+        # reduc dimension
+        reduc_dim = sp_mask.sum()
+        # warning
+        if reduc_dim < len(sp):
+            warnings.warn(
+                f"Clipping last {len(sp) - reduc_dim} eigen values " +
+                f"out of {len(sp)} dimensions, " +
+                f"that are lower than threshold {eps}."
+            )
+
+        # output
+        return sp[sp_mask], ev[:, sp_mask]
+    else:
+        # no clipping
+        # output
+        return sp, ev
 
 
 def convert_to_torch(A):
