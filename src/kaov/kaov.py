@@ -12,12 +12,12 @@ import numpy as np
 import pandas as pd
 from statsmodels.iolib import summary2
 from patsy import dmatrices, DesignInfo, ContrastMatrix
-from scipy.stats import chi2, f, gaussian_kde
+from scipy.stats import chi2, f, gaussian_kde, beta
 import matplotlib.pyplot as plt
 from matplotlib import rc, colormaps
 from torch import cdist, exp, matmul, diag, trace, sqrt, pow, cat
 from torch import eye, ones, tensor, float64, from_numpy, Tensor, finfo
-from torch.linalg import multi_dot, eigh
+from torch.linalg import multi_dot, eigh, inv
 
 
 def ordered_eigsy(matrix, eps=None, clip=True):
@@ -705,11 +705,11 @@ class AOV:
         fig, axs = plt.subplots(figsize=figsize, ncols=nb_factors)
         medianprops = dict(linewidth=0.75, color='black', alpha=alpha)
         whiskerprops = dict(linewidth=0.75, alpha=alpha)
-        for f, factor in enumerate(factors):
+        for fct, factor in enumerate(factors):
             factor_lvls = self.data.meta[factor].unique()
             cmap = colormaps[colormap]
             colors = cmap(np.linspace(0.1, 0.9, len(factor_lvls)))
-            ax = axs if nb_factors == 1 else axs[f]
+            ax = axs if nb_factors == 1 else axs[fct]
             ax.plot(x, y, color='black', lw=.8, linestyle='--')
             ax.set_xlim(a - (b - a) / 10, b + (b - a) / 10)
             for c in combs:
@@ -964,10 +964,12 @@ class AOV:
         proj.columns += 1
         return proj
 
-    def compute_cook_distances(self, L, t_max=100):
+    def compute_cook_distances(self, L, t_max=100, normalize=True):
         """
         Computes influence measures in the form of Cook's distances for each
-        observation.
+        observation as well as the corresponding p-values. The p-values are
+        obtained based on the Beta distribution associated with normalized
+        Cook's distances.
 
         Parameters
         ----------
@@ -976,13 +978,20 @@ class AOV:
         t_max : int, optional
             Maximal truncation of the residual covariance operator,
             the default is 100.
+        normalize : bool, optional
+            If True (default), the distances are normalized with respect to
+            the design and contrasts.
 
         Returns
         -------
-        proj : pandas.DataFrame
+        cook_distances : pandas.DataFrame
             Contains influence measure values, with rows corresponding to
             observations, and columns to truncations of the residual covariance
             operator.
+        cook_pvalues : pandas.DataFrame
+            Contains p-values associated with the influence measure, with rows 
+            corresponding to observations, and columns to truncations of the 
+            residual covariance operator.
 
         """
         W = multi_dot([self.data.exog, self.data._XXinv, L.T])
@@ -990,16 +999,29 @@ class AOV:
         coef_D = diag(multi_dot([W, LXXLinv, W.T]))
         one_minus_hii = (1 - diag(self.data._ProjImX))
         coef_D /= (one_minus_hii ** 2 * L.shape[0])
+        LL = matmul(L, L.T)
+        L_inv = matmul(L.T, inv(LL))
+        XX = matmul(self.data.exog.T, self.data.exog)
+        hii_star = diag(multi_dot([self.data.exog, self.data._XXinv, L_inv, L, XX, L_inv, L, 
+                                   self.data._XXinv, self.data.exog.T]))
+        C_i = hii_star * (self.data.nobs - L.shape[0]) / (L.shape[0] * one_minus_hii)
         K_T = self._compute_K_T(t_max=t_max)
-
         cook_distances = {}
+        cook_pvalues = {}
         for t in range(1, t_max + 1):
+            # Cook distances:
             cook_traces = diag(multi_dot([self.data._ProjImXorthogonal, K_T[:t].T,
                                           K_T[:t], self.data._ProjImXorthogonal]))
-            cook_distances[t] = (cook_traces * coef_D).numpy()
-
+            cook_distances_norm = (cook_traces * coef_D).numpy() / np.array(C_i)
+            cook_distances[t] = (cook_distances_norm if normalize else 
+                                 (cook_traces * coef_D).numpy())
+            # P-values:
+            a = t / 2
+            b = (self.data.nobs - L.shape[0] - t) / 2
+            cook_pvalues[t] = beta(a, b).sf(cook_distances_norm)
         cook_distances = pd.DataFrame(cook_distances, index=self.data.index)
-        return cook_distances
+        cook_pvalues = pd.DataFrame(cook_pvalues, index=self.data.index)
+        return cook_distances, cook_pvalues
 
     def correct_pvalues(self, pvalues, correction='bonferroni', by_level=False):
         """
@@ -1025,21 +1047,22 @@ class AOV:
                            for k in self._factor_info.keys()]
         else:
             factor_cols = [[True,] * len(pvalues.columns),]
-        for f in factor_cols:
-            pvalues.loc[:, f] *= np.sum(f)
+        for fct in factor_cols:
+            pvalues.loc[:, fct] *= np.sum(fct)
             if correction == 'BH':
-                pval_ranks = pvalues.loc[:, f].rank(axis=1, method='dense')
-                pvalues.loc[:, f] /= pval_ranks
+                pval_ranks = pvalues.loc[:, fct].rank(axis=1, method='dense')
+                pvalues.loc[:, fct] /= pval_ranks
                 pvalues.clip(upper=1, inplace=True)
 
     def test(self, hypotheses='pairwise', hypotheses_subset=None,
              by_level=False, t_max=100, correction=None, test_intercept=False,
              true_proportions=False, center_projections=True, verbose=0,
-             n_anchors=None, f_norm=True, skip_projections_and_cook=False):
+             n_anchors=None, f_norm=True, skip_projections_and_cook=False,
+             norm_cook=True):
         """
         Performs kernel hypothesis tests for the given model. Simultaneously
         calculates projections on the associated discriminant axes as well as
-        influences of observations with respect to the test.
+        influences of observations with respect to the test with their p-values.
 
         Parameters
         ----------
@@ -1102,6 +1125,9 @@ class AOV:
             If False (default), projections on the discriminant axes as well as
             Cook's distances will be computed. Set to True to avoid computing
             them if they are not needed, in order to reduce computation time.
+        norm_cook : bool, optional
+            If True (default), the Cook's distances are normalized with 
+            respect to the design and contrasts.
 
         Returns
         -------
@@ -1131,6 +1157,7 @@ class AOV:
         results = {}
         projections = {}
         cook_distances = {}
+        cook_pvalues = {}
         if correction is not None:
             corrected_pvals_dict = {}
         # Get factor dummies to add the factor information to the data frames:
@@ -1162,7 +1189,9 @@ class AOV:
             if not skip_projections_and_cook:
                 projections[name] = self.project_on_discriminant(K, K_T, D,
                                                                  center=center_projections)
-                cook_distances[name] = self.compute_cook_distances(L, t_max=t_max)
+                (cook_distances[name],
+                 cook_pvalues[name]) = self.compute_cook_distances(L, t_max=t_max,
+                                                                   normalize=norm_cook)
                 if not hasattr(self, 'formula'):
                     projections[name][name] = np.nan
                     cook_distances[name][name] = np.nan
@@ -1190,6 +1219,7 @@ class AOV:
                         dummies_factor_i.loc[nan_obs, 'NaN'] = 2
                     projections[name][name] = dummies_factor_i.idxmax(axis=1)
                     cook_distances[name][name] = dummies_factor_i.idxmax(axis=1)
+                    cook_pvalues[name][name] = dummies_factor_i.idxmax(axis=1)
         # Correct p-values:
         if correction is not None:
             if verbose > 0:
@@ -1200,7 +1230,8 @@ class AOV:
             for hyp in hyps:
                 name, L = hyp
                 results[name]['P-value'] = corrected_pvals_df[name]
-        return KernelAOVResults(hyps, results, projections, cook_distances)
+        return KernelAOVResults(hyps, results, projections, 
+                                cook_distances, cook_pvalues)
 
 
 class KernelAOVResults():
@@ -1232,6 +1263,12 @@ class KernelAOVResults():
         obtained with `AOV.compute_cook_distances`. In each data frame, rows
         correspond to observations, and columns to truncations of the
         residual covariance operator.
+    cook_pvalues : dict
+        A dictionary with keys corresponding to hypothesis names, and values
+        to instances of pandas.DataFrame with the p-values associated with the 
+        influence measures obtained with `AOV.compute_cook_distances`. 
+        In each data frame, rows correspond to observations, and columns to 
+        truncations of the residual covariance operator.
 
     Attributes:
     ----------
@@ -1243,14 +1280,18 @@ class KernelAOVResults():
         See Parameters.
     cook_distances : dict
         See Parameters.
+    cook_pvalues : dict
+        See Parameters.
 
     """
 
-    def __init__(self, hypotheses, stats, projections, cook_distances):
+    def __init__(self, hypotheses, stats, projections, cook_distances, 
+                 cook_pvalues):
         self.hypotheses = hypotheses
         self.stats = stats
         self.projections = projections
         self.cook_distances = cook_distances
+        self.cook_pvalues = cook_pvalues
 
     def _summary_obj(self, t_max=5):
         """
@@ -1391,21 +1432,21 @@ class KernelAOVResults():
 
         figsize = figsize if figsize is not None else (8 * nb_tests, 6)
         fig, axs = plt.subplots(ncols=nb_tests, figsize=figsize)
-        for f, test in enumerate(tests):
-            ax = axs if nb_tests == 1 else axs[f]
+        for j, test in enumerate(tests):
+            ax = axs if nb_tests == 1 else axs[j]
             T_max = len(self.projections[test].columns) - 1
             t = min(t, T_max)
-            proj_f = self.projections[test]
-            test_lvls = proj_f[test].unique()
+            proj_j = self.projections[test]
+            test_lvls = proj_j[test].unique()
             test_lvls = test_lvls[test_lvls != 'NaN']  # extract relevant observations
             cmap = colormaps[colormap]
             colors = cmap(np.linspace(0.1, 0.9, len(test_lvls)))
-            no_lvl_info = proj_f[test].isnull().all()
+            no_lvl_info = proj_j[test].isnull().all()
             for i, test_lvl in enumerate(test_lvls):
                 if no_lvl_info:
-                    lvl_proj = proj_f[t]
+                    lvl_proj = proj_j[t]
                 else:
-                    lvl_proj = proj_f[proj_f[test] == test_lvl][t]
+                    lvl_proj = proj_j[proj_j[test] == test_lvl][t]
                 min_proj, max_proj = lvl_proj.min(), lvl_proj.max()
                 min_scaled = min_proj - 0.1 * (max_proj - min_proj)
                 max_scaled = max_proj + 0.1 * (max_proj - min_proj)
@@ -1481,25 +1522,25 @@ class KernelAOVResults():
 
         figsize = figsize if figsize is not None else (8 * nb_tests, 6)
         fig, axs = plt.subplots(ncols=nb_tests, figsize=figsize)
-        for f, test in enumerate(tests):
-            ax = axs if nb_tests == 1 else axs[f]
+        for j, test in enumerate(tests):
+            ax = axs if nb_tests == 1 else axs[j]
             T_max = len(self.cook_distances[test].columns) - 1
             t1 = min(t1, T_max)
             t2 = min(t2, T_max)
-            cook_f = self.cook_distances[test]
-            proj_f = self.projections[test]
-            test_lvls = cook_f[test].unique()
+            cook_j = self.cook_distances[test]
+            proj_j = self.projections[test]
+            test_lvls = cook_j[test].unique()
             test_lvls = test_lvls[test_lvls != 'NaN']  # extract relevant observations
             cmap = colormaps[colormap]
             colors = cmap(np.linspace(0.1, 0.9, len(test_lvls)))
-            no_lvl_info = cook_f[test].isnull().all()
+            no_lvl_info = cook_j[test].isnull().all()
             for i, test_lvl in enumerate(test_lvls):
                 if no_lvl_info:
-                    lvl_cook = cook_f[t1]
-                    lvl_proj = proj_f[t2]
+                    lvl_cook = cook_j[t1]
+                    lvl_proj = proj_j[t2]
                 else:
-                    lvl_cook = cook_f[cook_f[test] == test_lvl][t1]
-                    lvl_proj = proj_f[proj_f[test] == test_lvl][t2]
+                    lvl_cook = cook_j[cook_j[test] == test_lvl][t1]
+                    lvl_proj = proj_j[proj_j[test] == test_lvl][t2]
                 ax.scatter(lvl_proj, lvl_cook, color=colors[i],
                            alpha=alpha, label=test_lvl)
             if not no_lvl_info:
