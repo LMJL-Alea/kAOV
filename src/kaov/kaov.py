@@ -1467,7 +1467,7 @@ class KernelAOVResults():
         plt.tight_layout()
         fig.suptitle(f'Discriminant axis projection density (t={t})',
                      fontsize=25, y=1.05)
-        plt.show()
+        plt.draw()
         return fig, axs
     
     def plot_mean_embedding_projections(self, t1=1, t2=2, tests=None, 
@@ -1551,6 +1551,7 @@ class KernelAOVResults():
                                 sharex=True, sharey=True)
         for j, test in enumerate(tests):
             ax = axs if nb_tests == 1 else axs[j]
+            ax.yaxis.set_tick_params(labelleft=True)
             ax.axvline(0, color='grey', linestyle='--', alpha=0.5)
             ax.axhline(0, color='grey', linestyle='--', alpha=0.5)
             proj_j = self.projections[test]
@@ -1600,7 +1601,7 @@ class KernelAOVResults():
         else:
             fig.suptitle('Discriminant axis projection of mean embeddings',
                          fontsize=25, y=1.05)
-        plt.show()
+        plt.draw()
         return fig, axs
 
     def plot_influence(self, t1=100, t2=100, tests=None,
@@ -1683,5 +1684,5 @@ class KernelAOVResults():
         plt.tight_layout()
         fig.suptitle(f"Cook's distances (t={t1}) against projections (t={t2})",
                      fontsize=25, y=1.05)
-        plt.show()
+        plt.draw()
         return fig, axs
