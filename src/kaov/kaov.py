@@ -1469,6 +1469,139 @@ class KernelAOVResults():
                      fontsize=25, y=1.05)
         plt.show()
         return fig, axs
+    
+    def plot_mean_embedding_projections(self, t1=1, t2=2, tests=None, 
+                                        figsize=None, ylim=None, xlim=None,
+                                        alpha=1, s=50, marker='o', 
+                                        colors=None, colormap='viridis',
+                                        font_family='serif', legend=True, 
+                                        legend_fontsize=15, figtitle=None):
+        """
+        Plots projections of mean embeddings of relevat groups on the chosen
+        discriminant axis, associated with the tests underlying the
+        KernelAOVResults object. Produces separate subplots for each test.
+
+        Parameters
+        ----------
+        t1 : int, optional
+            Axis x of the plot, i.e. the mean embeddings are projected on the 
+            t1-th eigenfunction.
+        t2 : int, optional
+            Axis y of the plot, i.e. the mean embeddings are projected on the 
+            t2-th eigenfunction.
+        tests : list of strings or None
+            List containing names of tests to plot, out of all the tests in
+            the KernelAOVResults object (particularly useful with the by_level
+            testing option). The default is None, i.e. all tests are plotted.
+        figsize : tuple, optional
+            The size of the figure. If not specified, is set to
+            (8 * nb_factors, 6).
+        alpha : float, optional
+           The alpha blending value, between 0 (transparent) and 1 (opaque).
+           The default is 1.
+        s : int or dict
+            Marker sizes of the mean embedding projections. The default is 50.
+            If int, same sizes for all mean embeddings. To pass different 
+            values for different tests and levels, pass a dictionary with keys 
+            corresponding to test names, and values that are dictionaries with 
+            keys corresponding to the levels of the test and values that are 
+            marker size integers.
+        marker : str or dict
+            Marker styles of the mean embedding projections. The default is 'o'. 
+            If string, same marker for all mean embeddings. To pass different 
+            values for different tests and levels, pass a dictionary with keys 
+            corresponding to test names, and values that are dictionaries with 
+            keys corresponding to the levels of the test and values that are 
+            marker style strings.
+        colors : None or dict
+            Colors of the mean embedding projections. If None (default), colors
+            are chosen from the specified colormap. To customize, pass a 
+            dictionary with keys corresponding to test names, and values that
+            are dictionaries with keys corresponding to the levels of the test
+            and values that are colors.
+        colormap : str, optional
+            The name of a matplotlib colormap to be used for different factor
+            levels. The default is 'viridis'.
+        font_family : str, optional
+             Legend and labels' font family name accepted by matplotlib
+             (e.g., 'serif', 'sans-serif', 'monospace', 'fantasy' or 'cursive'),
+             the default is 'serif'.
+        legend : bool, optional
+            If True (default), legend is plotted automatically.
+        legend_fontsize : int, optional
+            Legend font size. The default is 15.
+        figtitle : str, optional
+            The title of the figure.
+
+        Returns
+        -------
+        fig : matplotlib.figure.Figure
+            A Figure object of the plot.
+        axs : numpy.ndarray of matplotlib.axes._axes.Axes
+            An Axes object of the plot.
+
+        """
+        tests = self.projections.keys() if tests is None else tests
+        nb_tests = len(tests)
+
+        rc('font', **{'family': font_family})
+
+        figsize = figsize if figsize is not None else (8 * nb_tests, 6)
+        fig, axs = plt.subplots(ncols=nb_tests, figsize=figsize, 
+                                sharex=True, sharey=True)
+        for j, test in enumerate(tests):
+            ax = axs if nb_tests == 1 else axs[j]
+            ax.axvline(0, color='grey', linestyle='--', alpha=0.5)
+            ax.axhline(0, color='grey', linestyle='--', alpha=0.5)
+            proj_j = self.projections[test]
+            t2 = t1 if t2 not in proj_j.columns else t2 # sometimes only one axis available
+            test_lvls = proj_j[test].unique()
+            test_lvls = test_lvls[test_lvls != 'NaN']  # extract relevant observations
+            nb_lvls = len(test_lvls)
+            # Create dictionaries for colors, markers and marker sizes:
+            if colors is None:
+                cmap = colormaps[colormap]
+                cmap_colors = cmap(np.linspace(0.1, 0.9, nb_lvls))
+                color = {test_lvls[i] : cmap_colors[i] for i in range(nb_lvls)}
+            elif type(colors) is dict:
+                color = colors[test]
+            if type(marker) is str:
+                markers = {test_lvls[i] : marker for i in range(nb_lvls)}
+            elif type(marker) is dict:
+                markers = marker[test]
+            if type(s) is int:
+                size = {test_lvls[i] : s for i in range(nb_lvls)}
+            elif type(s) is dict:
+                size = s[test]
+            no_lvl_info = proj_j[test].isnull().all()
+        # Scatter plots for each test:
+            for i, test_lvl in enumerate(test_lvls):
+                if no_lvl_info:
+                    lvl_proj_1 = proj_j[t1]
+                    lvl_proj_2 = proj_j[t2]
+                else:
+                    lvl_proj_1 = proj_j[proj_j[test] == test_lvl][t1]
+                    lvl_proj_2 = proj_j[proj_j[test] == test_lvl][t2]
+                try:
+                    ax.scatter(lvl_proj_1.mean(), lvl_proj_2.mean(), alpha=alpha, 
+                               linewidths=3, color=color[test_lvl], label=test_lvl, 
+                               s=size[test_lvl], marker=markers[test_lvl])
+                except ValueError:
+                    pass
+            if legend and not no_lvl_info:
+                ax.legend(bbox_to_anchor=(1.01, 0.5), loc='center left',
+                          fontsize=legend_fontsize)
+            ax.set_title(test, fontsize=18)
+            ax.set_xlabel(f'Discriminant axis: t={t1}', fontsize=14)
+            ax.set_ylabel(f'Discriminant axis: t={t2}', fontsize=14)
+        plt.tight_layout()
+        if figtitle is not None:
+            fig.suptitle(figtitle)
+        else:
+            fig.suptitle('Discriminant axis projection of mean embeddings',
+                         fontsize=25, y=1.05)
+        plt.show()
+        return fig, axs
 
     def plot_influence(self, t1=100, t2=100, tests=None,
                        colormap='viridis', alpha=.5, legend_fontsize=12,
