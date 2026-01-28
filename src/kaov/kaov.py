@@ -1555,7 +1555,8 @@ class KernelAOVResults():
             ax.axvline(0, color='grey', linestyle='--', alpha=0.5)
             ax.axhline(0, color='grey', linestyle='--', alpha=0.5)
             proj_j = self.projections[test]
-            t2 = t1 if t2 not in proj_j.columns else t2 # sometimes only one axis available
+            t1_j = t1
+            t2_j = t1_j if t2 not in proj_j.columns else t2 # sometimes only one axis available
             test_lvls = proj_j[test].unique()
             test_lvls = test_lvls[test_lvls != 'NaN']  # extract relevant observations
             nb_lvls = len(test_lvls)
@@ -1578,11 +1579,11 @@ class KernelAOVResults():
         # Scatter plots for each test:
             for i, test_lvl in enumerate(test_lvls):
                 if no_lvl_info:
-                    lvl_proj_1 = proj_j[t1]
-                    lvl_proj_2 = proj_j[t2]
+                    lvl_proj_1 = proj_j[t1_j]
+                    lvl_proj_2 = proj_j[t2_j]
                 else:
-                    lvl_proj_1 = proj_j[proj_j[test] == test_lvl][t1]
-                    lvl_proj_2 = proj_j[proj_j[test] == test_lvl][t2]
+                    lvl_proj_1 = proj_j[proj_j[test] == test_lvl][t1_j]
+                    lvl_proj_2 = proj_j[proj_j[test] == test_lvl][t2_j]
                 try:
                     ax.scatter(lvl_proj_1.mean(), lvl_proj_2.mean(), alpha=alpha, 
                                linewidths=3, color=color[test_lvl], label=test_lvl, 
@@ -1593,8 +1594,8 @@ class KernelAOVResults():
                 ax.legend(bbox_to_anchor=(1.01, 0.5), loc='center left',
                           fontsize=legend_fontsize)
             ax.set_title(test, fontsize=18)
-            ax.set_xlabel(f'Discriminant axis: t={t1}', fontsize=14)
-            ax.set_ylabel(f'Discriminant axis: t={t2}', fontsize=14)
+            ax.set_xlabel(f'Discriminant axis: t={t1_j}', fontsize=14)
+            ax.set_ylabel(f'Discriminant axis: t={t2_j}', fontsize=14)
         plt.tight_layout()
         if figtitle is not None:
             fig.suptitle(figtitle)
