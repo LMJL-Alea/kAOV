@@ -528,11 +528,12 @@ class AOV:
         self.kernel_median_coef = kernel_median_coef
 
         if self.kernel_function == 'gauss':
-            (self.kernel,
-             self.computed_bandwidth) = gauss_kernel_median(x=self.data.endog,
-                                                            bandwidth=kernel_bandwidth,
-                                                            median_coef=kernel_median_coef,
-                                                            return_bandwidth=True)
+            self.kernel, self.computed_bandwidth = gauss_kernel_median(
+                x=self.data.endog if not nystrom else self.data_nystrom.endog,
+                bandwidth=kernel_bandwidth,
+                median_coef=kernel_median_coef,
+                return_bandwidth=True
+            )
         elif self.kernel_function == 'linear':
             self.kernel = linear_kernel
         else:
