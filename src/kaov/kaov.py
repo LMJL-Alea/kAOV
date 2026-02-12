@@ -1522,7 +1522,7 @@ class KernelAOVResults():
             and values that are colors.
         colormap : str, optional
             The name of a matplotlib colormap to be used for different factor
-            levels. The default is 'viridis'.
+            levels (if colors are not provided). The default is 'viridis'.
         font_family : str, optional
              Legend and labels' font family name accepted by matplotlib
              (e.g., 'serif', 'sans-serif', 'monospace', 'fantasy' or 'cursive'),
@@ -1607,8 +1607,9 @@ class KernelAOVResults():
         return fig, axs
 
     def plot_influence(self, t1=100, t2=100, tests=None,
-                       colormap='viridis', alpha=.5, legend_fontsize=12,
-                       font_family='serif', figsize=None):
+                       marker='o', colors=None, colormap='viridis',
+                       font_family='serif', legend=True, alpha=.5, 
+                       legend_fontsize=12, figsize=None):
         """
         Plots influences (Cook's distances) of the embeddings, associated with
         the tests underlying the KernelAOVResults object, against their
@@ -1627,9 +1628,22 @@ class KernelAOVResults():
             List containing a list of tests to plot, out of all the tests in
             the KernelAOVResults object (particularly useful with the by_level
             testing option).
+        marker : str or dict
+            Marker styles of the embedding projections. The default is 'o'. 
+            If string, same marker for all mean embeddings. To pass different 
+            values for different tests and levels, pass a dictionary with keys 
+            corresponding to test names, and values that are dictionaries with 
+            keys corresponding to the levels of the test and values that are 
+            marker style strings.
+        colors : None or dict
+            Colors of the mean embedding projections. If None (default), colors
+            are chosen from the specified colormap. To customize, pass a 
+            dictionary with keys corresponding to test names, and values that
+            are dictionaries with keys corresponding to the levels of the test
+            and values that are colors.
         colormap : str, optional
             The name of a matplotlib colormap to be used for different factor
-            levels. The default is 'viridis'.
+            levels (if colors are not provided). The default is 'viridis'.
         alpha : float, optional
            The alpha blending value, between 0 (transparent) and 1 (opaque).
            The default is 0.5.
@@ -1660,15 +1674,25 @@ class KernelAOVResults():
         fig, axs = plt.subplots(ncols=nb_tests, figsize=figsize)
         for j, test in enumerate(tests):
             ax = axs if nb_tests == 1 else axs[j]
-            T_max = len(self.cook_distances[test].columns) - 1
+            T_max = len(self.projections[test].columns) - 1
             t1 = min(t1, T_max)
             t2 = min(t2, T_max)
             cook_j = self.cook_distances[test]
             proj_j = self.projections[test]
             test_lvls = cook_j[test].unique()
             test_lvls = test_lvls[test_lvls != 'NaN']  # extract relevant observations
-            cmap = colormaps[colormap]
-            colors = cmap(np.linspace(0.1, 0.9, len(test_lvls)))
+            nb_lvls = len(test_lvls)
+            # Create dictionaries for colors and markers:
+            if colors is None:
+                cmap = colormaps[colormap]
+                cmap_colors = cmap(np.linspace(0.1, 0.9, nb_lvls))
+                color = {test_lvls[i] : cmap_colors[i] for i in range(nb_lvls)}
+            elif type(colors) is dict:
+                color = colors[test]
+            if type(marker) is str:
+                markers = {test_lvls[i] : marker for i in range(nb_lvls)}
+            elif type(marker) is dict:
+                markers = marker[test]
             no_lvl_info = cook_j[test].isnull().all()
             for i, test_lvl in enumerate(test_lvls):
                 if no_lvl_info:
@@ -1677,9 +1701,9 @@ class KernelAOVResults():
                 else:
                     lvl_cook = cook_j[cook_j[test] == test_lvl][t1]
                     lvl_proj = proj_j[proj_j[test] == test_lvl][t2]
-                ax.scatter(lvl_proj, lvl_cook, color=colors[i],
-                           alpha=alpha, label=test_lvl)
-            if not no_lvl_info:
+                ax.scatter(lvl_proj, lvl_cook, color=color[test_lvl], 
+                           marker=markers[test_lvl], alpha=alpha, label=test_lvl)
+            if legend and not no_lvl_info:
                 ax.legend(bbox_to_anchor=(1.01, 0.5), loc='center left',
                           fontsize=legend_fontsize)
             ax.set_title(test, fontsize=18)
