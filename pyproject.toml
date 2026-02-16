@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "kAOV" 
-version = "1.4.4"
+version = "1.4.5"
 description = "Kernel Analysis of Variance"
 readme = "README.md"
 requires-python = ">=3.8"
@@ -21,12 +21,35 @@ maintainers = [
 ]
 dependencies = [
   "matplotlib",
-  "numpy < 2",
+  "numpy",
   "pandas",
   "scipy",
   "patsy",
   "torch >= 2.2.0",
   "statsmodels >= 0.14.0",
   "tqdm",
+]
+
+[tool.uv.sources]
+torch = [
+  { index = "pytorch-macos", marker = "sys_platform == 'darwin' and platform_machine == 'x86_64'"},
+  { index = "pypi", marker = "sys_platform != 'darwin'"},
+]
+
+[[tool.uv.index]]
+name = "pytorch-macos"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+index-strategy = "unsafe-best-match"
+extra-index-url = ["https://download.pytorch.org/whl/cpu"]
+
+[[tool.uv.index]]
+name = "pypi"
+url = "https://pypi.python.org/simple"
+explicit = true
+
+[dependency-groups]
+dev = [
+    "spyder>=6.1.3",
 ]
 
