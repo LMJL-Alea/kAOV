@@ -600,8 +600,8 @@ class AOV:
             aov_obj._factor_info = {_name.replace(s1, '').replace(s2, ''): _slice
                                     for _name, _slice in aov_obj._factor_info.items()}
         return aov_obj
-
-    def compute_diagnostics(self, t_max=100):
+        
+    def compute_diagnostics(self, t_max=100, n_anchors=None):
         """
         Calculates diagnostics associated with the model and saves them in the
         `diagnostics` attribute. The latter is a dictionary containing the
@@ -612,33 +612,44 @@ class AOV:
         the first eigenfunctions of the residual covariance operator.
         - Residuals: projections of the residuals on the first
         eigenfunctions of the residual covariance operator.
-
+    
         Parameters
         ----------
         t_max : int, optional
             Maximal truncation for projections calculation, the default is 100.
-
+        n_anchors : int, optional
+            Number of anchors used in the Nystrom method. If None, the value is
+            set at `t_max`.
+    
         """
-        K = self.kernel(self.data.endog)
-        sp, U_norm = self.data._diagonalize_residual_covariance(K)
-        t_max = min(t_max, self.data.nobs)
+        data = self.data_nystrom if self.data_nystrom is not None else self.data
+        K = self.kernel(data.endog)
+        sp, U_norm = data._diagonalize_residual_covariance(K)
+        if self.data_nystrom is not None:
+            if n_anchors is None:
+                n_anchors = t_max
+            norm_anchors = U_norm[:, : n_anchors]
+            sp, U_a = self._diagonalize_covariance_of_anchor_projected_residuals(norm_anchors)
+            U_norm = multi_dot([norm_anchors, U_a])
+            K = self.kernel(self.data.endog, self.data_nystrom.endog)
+        else:
+            U_norm = sp ** (1/2) * U_norm
+        t_max = min(t_max, (sp > 0).sum())
         U_norm_T = U_norm[:, : t_max]
-
         columns = list(range(1, t_max + 1))
-        U_norm_p12 = sp[:t_max] ** (1/2) * U_norm_T
-        embeddings = pd.DataFrame(multi_dot([K, U_norm_p12]),
+        embeddings = pd.DataFrame(multi_dot([K, U_norm_T]),
                                   index=self.data.index, columns=columns)
-        predictions = pd.DataFrame(multi_dot([self.data._ProjImX, K, U_norm_p12]),
+        predictions = pd.DataFrame(multi_dot([self.data._ProjImX, K, U_norm_T]),
                                    index=self.data.index, columns=columns)
-        residuals = pd.DataFrame(multi_dot([self.data._ProjImXorthogonal, K, U_norm_p12]),
+        residuals = pd.DataFrame(multi_dot([self.data._ProjImXorthogonal, K, U_norm_T]),
                                  index=self.data.index, columns=columns)
         self.diagnostics = {'Embeddings': embeddings,
-                            'Predictions': predictions,
-                            'Residuals': residuals}
+                               'Predictions': predictions,
+                               'Residuals': residuals}
 
     def plot_diagnostics(self, t=100, diagnostic='residuals', t_max=100,
-                         colormap='viridis', alpha=.75, legend_fontsize=12,
-                         font_family='serif', figsize=None):
+                         n_anchors=None, colormap='viridis', alpha=.75, 
+                         legend_fontsize=12, font_family='serif', figsize=None):
         """
         Plots diagnostics associated with the model. The graph contains sublots
         for each factor, with the projections of either the residuals
@@ -655,6 +666,9 @@ class AOV:
             The default is 'residuals', the alternative is 'embeddings'.
         t_max : int, optional
             Maximal truncation for projections calculation, the default is 100.
+        n_anchors : int, optional
+            Number of anchors used in the Nystrom method. If None, the value is
+            set at `t_max`.
         colormap : str, optional
             The name of a matplotlib colormap to be used for different factor
             levels. The default is 'viridis'.
@@ -680,7 +694,7 @@ class AOV:
 
         """
         if not self.diagnostics or t not in self.diagnostics['Predictions']:
-            self.compute_diagnostics(t_max=max(t, t_max))
+            self.compute_diagnostics(t_max=max(t, t_max), n_anchors=n_anchors)
 
         factors = self.data.meta.columns
         nb_factors = len(factors)
@@ -898,7 +912,7 @@ class AOV:
             sp, U_a = self._diagonalize_covariance_of_anchor_projected_residuals(norm_anchors)
             U_norm = multi_dot([norm_anchors, (sp ** (-1/2) * U_a)])
             K = self.kernel(self.data_nystrom.endog, self.data.endog)
-        t_max = min(t_max, min((sp > 0).sum(), self.data.nobs))
+        t_max = min(t_max, (sp > 0).sum())
         U_norm_T = U_norm[:, : t_max]
         K_T = multi_dot([U_norm_T.T, K])
         return K_T
