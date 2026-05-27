@@ -1220,7 +1220,7 @@ class AOV:
                         dummies_factor_i = factor_dummies.iloc[:, _slice]
                     else:  # specify only those levels that are relevant for a given test
                         if hypotheses == 'one-vs-all':
-                            _slice = [s for f, s in self._factor_info.items() if f in name][0]
+                            _slice = self._factor_info[name.split(' = ')[1][:-11]]
                         else:
                             _slice = [i for i, en in enumerate(self.data.exog_names) if en in name]
                         dummies_factor_i = factor_dummies.iloc[:, _slice]
