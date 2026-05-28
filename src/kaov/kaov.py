@@ -7,6 +7,7 @@ Created on Thu Jun  6 13:28:15 2024
 """
 import itertools
 import warnings
+import re
 from tqdm import tqdm
 import numpy as np
 import pandas as pd
@@ -1231,10 +1232,10 @@ class AOV:
                         if ':' in name:
                             interaction_cols = dummies_factor_i.columns.str.contains(':')
                             dummies_factor_i = dummies_factor_i.loc[:, interaction_cols]
-                        # Put NaN for the irrelevant levels (needed for visualizations)
+                        # Put NA for the irrelevant levels (needed for visualizations)
                         nan_obs = (dummies_factor_i.max(axis=1) == 0)
-                        dummies_factor_i['NaN'] = 0
-                        dummies_factor_i.loc[nan_obs, 'NaN'] = 2
+                        dummies_factor_i['NA'] = 0
+                        dummies_factor_i.loc[nan_obs, 'NA'] = 2
                     projections[name][name] = dummies_factor_i.idxmax(axis=1)
                     cook_distances[name][name] = dummies_factor_i.idxmax(axis=1)
                     cook_pvalues[name][name] = dummies_factor_i.idxmax(axis=1)
@@ -1248,8 +1249,12 @@ class AOV:
             for hyp in hyps:
                 name, L = hyp
                 results[name]['P-value'] = corrected_pvals_df[name]
+        hypothesis_type = (hypotheses if hypotheses is None or type(hypotheses) == str
+                           else 'custom')
         return KernelAOVResults(hyps, results, projections, 
-                                cook_distances, cook_pvalues)
+                                cook_distances, cook_pvalues,
+                                hypothesis_type=hypothesis_type, 
+                                by_level=by_level)
 
 
 class KernelAOVResults():
@@ -1287,6 +1292,12 @@ class KernelAOVResults():
         influence measures obtained with `AOV.compute_cook_distances`. 
         In each data frame, rows correspond to observations, and columns to 
         truncations of the residual covariance operator.
+    hypothesis_type : str or None
+        Types of hypotheses that were tested. If not None, expected options
+        are 'pairwise', 'one-vs-all' and 'custom'. 
+    by_level : bool, optional
+        False if global (factor-wise) tests were perfromed, True if tests by 
+        level or by a pair of levels were perfromed.
 
     Attributes:
     ----------
@@ -1300,16 +1311,22 @@ class KernelAOVResults():
         See Parameters.
     cook_pvalues : dict
         See Parameters.
+    hypothesis_type : str or None
+        See Parameters.
+    by_level : bool
+        See Parameters.
 
     """
 
     def __init__(self, hypotheses, stats, projections, cook_distances, 
-                 cook_pvalues):
+                 cook_pvalues, hypothesis_type, by_level):
         self.hypotheses = hypotheses
         self.stats = stats
         self.projections = projections
         self.cook_distances = cook_distances
         self.cook_pvalues = cook_pvalues
+        self.hypothesis_type = hypothesis_type
+        self.by_level = by_level
 
     def _summary_obj(self, t_max=5):
         """
@@ -1456,7 +1473,7 @@ class KernelAOVResults():
             t = min(t, T_max)
             proj_j = self.projections[test]
             test_lvls = proj_j[test].unique()
-            test_lvls = test_lvls[test_lvls != 'NaN']  # extract relevant observations
+            test_lvls = test_lvls[test_lvls != 'NA']  # extract relevant observations
             cmap = colormaps[colormap]
             colors = cmap(np.linspace(0.1, 0.9, len(test_lvls)))
             no_lvl_info = proj_j[test].isnull().all()
@@ -1576,7 +1593,7 @@ class KernelAOVResults():
             t1_j = t1
             t2_j = t1_j if t2 not in proj_j.columns else t2 # sometimes only one axis available
             test_lvls = proj_j[test].unique()
-            test_lvls = test_lvls[test_lvls != 'NaN']  # extract relevant observations
+            test_lvls = test_lvls[test_lvls != 'NA']  # extract relevant observations
             nb_lvls = len(test_lvls)
             # Create dictionaries for colors, markers and marker sizes:
             if colors is None:
@@ -1697,7 +1714,7 @@ class KernelAOVResults():
             cook_j = self.cook_distances[test]
             proj_j = self.projections[test]
             test_lvls = cook_j[test].unique()
-            test_lvls = test_lvls[test_lvls != 'NaN']  # extract relevant observations
+            test_lvls = test_lvls[test_lvls != 'NA']  # extract relevant observations
             nb_lvls = len(test_lvls)
             # Create dictionaries for colors and markers:
             if colors is None:
@@ -1729,3 +1746,170 @@ class KernelAOVResults():
                      fontsize=25, y=1.05)
         plt.draw()
         return fig, axs
+    
+    def test_summary_df(self, t, factor=None):
+        """
+        Creates a pandas.DataFrame with a summary of the test for a given truncation
+        and factor (in the by-level case).
+
+        Parameters
+        ----------
+        t : int
+            Truncation for which to return the test results.
+        factor : str or None
+            None by default, which is acceptable if the test is global (not by level),
+            in which case the results of tests for each factor are returned. A factor
+            has to be specified in the by-level case, then returns the results of
+            tests on comparisons related with the chosen factor.
+
+        Returns
+        -------
+        sum_df : pandas.DataFrame of pandas.Series
+            A data frame with the summary of test results.
+
+        """
+        if not self.by_level or self.hypothesis_type == 'custom':
+            if factor is not None:
+                sum_df = pd.Series(index=['factor', 'stat', 'pval'], dtype=str)
+                sum_df['factor'] = factor
+                sum_df['stat'] = self.stats[factor].loc[t, 'TKHL']
+                sum_df['pval'] = self.stats[factor].loc[t, 'P-value']
+            else:
+                sum_df = pd.DataFrame(columns=['factor', 'stat', 'pval'],
+                                      index=np.arange(1, len(self.stats) + 1), 
+                                      dtype=str)
+                for i, (hyp, stat) in enumerate(self.stats.items()):
+                    sum_df.loc[i + 1, 'factor'] = hyp
+                    sum_df.loc[i + 1, 'stat'] = self.stats[hyp].loc[t, 'TKHL']
+                    sum_df.loc[i + 1, 'pval'] = self.stats[hyp].loc[t, 'P-value']
+        else:
+            if factor is None:
+                raise ValueError("Set the factor parameter (necessary in the by-level case).")
+            else:
+                nb_factors = factor.count(':') + 1
+                if self.hypothesis_type == 'pairwise':
+                    factor_cols = [f'factor_{f + 1}_1' for f in range(nb_factors)]
+                    factor_cols.extend([f'factor_{f + 1}_2' for f in range(nb_factors)])
+                else:
+                    factor_cols = [f'factor_{f + 1}' for f in range(nb_factors)]
+                sum_df = pd.DataFrame(columns=factor_cols + ['stat', 'pval'],
+                                      index=np.arange(1, len(self.stats) + 1), 
+                                      dtype=str)
+                for i, (hyp, stat) in enumerate(self.stats.items()):
+                    is_factor_hyp = ((nb_factors == 1 and factor in hyp and ':' not in hyp)
+                                     or (nb_factors > 1 and np.all([f in hyp for f in factor.split(':')])))
+                    if is_factor_hyp:
+                        levels = re.findall(r"\[(.*?)\]", hyp)
+                        for j, lvl in enumerate(levels):
+                            sum_df.iloc[i, j] = lvl
+                        sum_df.loc[i + 1, 'stat'] = self.stats[hyp].loc[t, 'TKHL']
+                        sum_df.loc[i + 1, 'pval'] = self.stats[hyp].loc[t, 'P-value']
+                sum_df.dropna(axis=0, inplace=True)
+                sum_df.index = np.arange(1, len(sum_df) + 1)
+        return sum_df
+
+    def projection_summary_df(self, t, factor=None, hypothesis=None):
+        """
+        Creates a pandas.DataFrame with the projections, Cook's distances and their
+        p-values, associated with the test for a given truncation, 
+        factor (for all tests of type 'pairwise' and 'one-vs-all') and
+        hypothesis (in the by-level cases and for user-specified tests).
+
+        Parameters
+        ----------
+        t : int
+            Truncation for which to return the results.
+        factor : str or None
+            None by default (acceptable for user-specified tests) only. A factor
+            has to be specified in all other cases, then returns the results of
+            tests on comparisons related with the chosen factor. Factor names are 
+            keys of the `_factor_info` attribute of the AOV class.
+        hypothesis : str or None
+            None by default, which is acceptable if the test is global or of type
+            'one-vs-all'. In the by-level pairwise or custom test cases a hypothesis
+            has to be specified. The list of possible hypothesis names is accessible
+            through the `hypotheses` attribute of the KernelAOVResults class (first
+            element of each tuple).
+
+        Returns
+        -------
+        sum_df : pandas.DataFrame
+            A data frame with the summary of projections.
+
+        """
+        predef = (self.hypothesis_type in ['pairwise', 'one-vs-all'] or
+                  (self.hypothesis_type is None and not self.by_level))
+        ### Pre-defined test cases (compatible with the OneHot encoding):
+        if predef:
+            if factor is None:
+                raise ValueError("Set the factor parameter.")
+            nb_factors = factor.count(':') + 1
+            factor_cols = [f'factor_{f + 1}' for f in range(nb_factors)]
+            if not self.by_level:
+                proj = self.projections[factor]
+                cook = self.cook_distances[factor]
+                cook_pval = self.cook_pvalues[factor]
+                sum_df = pd.DataFrame(columns=factor_cols + ['proj', 'cook', 'cook_pval'],
+                                      index=proj.index, dtype=str)
+                sum_df['proj'] = proj[t]
+                sum_df['cook'] = cook[t]
+                sum_df['cook_pval'] = cook_pval[t]
+                factors_split = proj[factor].str.split(':')
+                for i, fct in enumerate(factor_cols):
+                    sum_df[fct] = factors_split.str.get(i).str.split('[').str.get(1).str.split(']').str.get(0)
+            elif self.hypothesis_type == 'one-vs-all':
+                sum_df = pd.DataFrame(columns=factor_cols + ['proj', 'cook', 'cook_pval'],
+                                      index=list(self.projections.values())[0].index, 
+                                      dtype=str)
+                for i, (hyp, _) in enumerate(self.hypotheses):
+                    is_factor_hyp = ((nb_factors == 1 and factor in hyp and ':' not in hyp)
+                                     or (nb_factors > 1 and np.all([f in hyp for f in factor.split(':')])))
+                    if is_factor_hyp:
+                        proj = self.projections[hyp]
+                        cook = self.cook_distances[hyp]
+                        cook_pval = self.cook_pvalues[hyp]
+                        where_hyp = proj[hyp] == hyp.split(' = ')[0]
+                        sum_df.loc[where_hyp, 'proj'] = proj.loc[where_hyp, t]
+                        sum_df.loc[where_hyp, 'cook'] = cook.loc[where_hyp, t]
+                        sum_df.loc[where_hyp, 'cook_pval'] = cook_pval.loc[where_hyp, t]
+                        levels = re.findall(r"\[(.*?)\]", hyp)
+                        for i, fct in enumerate(factor_cols):
+                            sum_df.loc[where_hyp, fct] = levels[i]
+            else:
+                if hypothesis is None:
+                    error_message = "Set the hypothesis parameter (necessary in "
+                    error_message += "the by-level pairwise case)."
+                    raise ValueError(error_message)
+                else:
+                    proj = self.projections[hypothesis]
+                    cook = self.cook_distances[hypothesis]
+                    cook_pval = self.cook_pvalues[hypothesis]
+                    where_hyp = proj[hypothesis] != 'NA'
+                    sum_df = pd.DataFrame(columns=factor_cols + ['proj', 'cook', 'cook_pval'],
+                                          index=proj.index, 
+                                          dtype=str)
+                    sum_df.loc[where_hyp, 'proj'] = proj.loc[where_hyp, t]
+                    sum_df.loc[where_hyp, 'cook'] = cook.loc[where_hyp, t]
+                    sum_df.loc[where_hyp, 'cook_pval'] = cook_pval.loc[where_hyp, t]
+                    pw_groups = hypothesis.split(' = ')
+                    where_left = proj[hypothesis] == pw_groups[0]
+                    where_right = proj[hypothesis] == pw_groups[1]
+                    levels = re.findall(r"\[(.*?)\]", hypothesis)
+                    for i, fct in enumerate(factor_cols):
+                        sum_df.loc[where_left, fct] = levels[i]
+                        sum_df.loc[where_right, fct] = levels[nb_factors + i]
+            sum_df.dropna(axis=0, inplace=True)
+        ### Other cases (custom contrasts, other coding schemes...):
+        else:
+            if hypothesis is None:
+                error_message = "Set the hypothesis parameter."
+            proj = self.projections[hypothesis]
+            cook = self.cook_distances[hypothesis]
+            cook_pval = self.cook_pvalues[hypothesis]
+            sum_df = pd.DataFrame(columns=['proj', 'cook', 'cook_pval'],
+                                  index=proj.index, 
+                                  dtype=str)
+            sum_df.loc[:, 'proj'] = proj.loc[:, t]
+            sum_df.loc[:, 'cook'] = cook.loc[:, t]
+            sum_df.loc[:, 'cook_pval'] = cook_pval.loc[:, t]
+        return sum_df
