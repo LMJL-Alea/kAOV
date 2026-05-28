@@ -749,7 +749,7 @@ class AOV:
         plt.show()
         return fig, axs
 
-    def set_hypotheses(self, hypotheses='pairwise', by_level=False,
+    def set_hypotheses(self, hypotheses=None, by_level=False,
                        test_intercept=False, true_proportions=False):
         """
         Set hypotheses to be tested.
@@ -758,10 +758,11 @@ class AOV:
         ----------
         hypotheses : str or None or list[tuple]
             Hypotheses to be tested.
-            - if str: either 'pairwise' (default) or 'one-vs-all'. Recommended
-            options in combination with OneHot encoding. If 'pairwise', the
-            levels of a factor are compared one to another in the pairwise way.
-            If 'one-vs-all', each level is compared to the factor mean.
+            - if str: either 'pairwise' (default for OneHot) or 'one-vs-all'. 
+            Recommended options in combination with OneHot encoding.
+            If 'pairwise', the levels of a factor are compared one to another 
+            in the pairwise way. If 'one-vs-all', each level is compared to 
+            the factor mean.
             - if None: produces an identity contrast matrix for each factor.
             Intended for other coding schemes (e.g. Treatment, Sum, etc).
             - if list[tuple]: custom hypothesis option. Each element of the
@@ -792,6 +793,8 @@ class AOV:
             contrast_L is a contrast matrix in the form of a torch.tensor.
 
         """
+        if hypotheses is None and 'OneHot' in self.formula:
+            hypotheses = 'pairwise'
         if isinstance(hypotheses, str):
             if not hasattr(self, 'formula') or 'OneHot' not in self.formula:
                 warnings.warn("'pairwise' and 'one-vs-all' options for `hypotheses` "
@@ -1069,7 +1072,7 @@ class AOV:
                 pvalues.loc[:, fct] /= pval_ranks
         pvalues.clip(upper=1, inplace=True)
 
-    def test(self, hypotheses='pairwise', hypotheses_subset=None,
+    def test(self, hypotheses=None, hypotheses_subset=None,
              by_level=False, t_max=100, correction=None, test_intercept=False,
              true_proportions=False, center_projections=True, verbose=0,
              n_anchors=None, f_norm=True, skip_projections_and_cook=False,
@@ -1083,8 +1086,8 @@ class AOV:
         ----------
         hypotheses : str or None or list[tuple]
             Hypotheses to be tested.
-            - if str: either 'pairwise' (default) or 'one-vs-all'. Recommended
-            options in combination with OneHot encoding.
+            - if str: either 'pairwise' (default for OneHot) or 'one-vs-all'. 
+            Recommended options in combination with OneHot encoding.
             - if None: produces an identity contrast matrix for each factor.
             Intended for other coding schemes (e.g. Treatment, Sum, etc).
             - if list[tuple]: custom hypothesis option. Each element of the
