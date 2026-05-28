@@ -1903,6 +1903,7 @@ class KernelAOVResults():
         else:
             if hypothesis is None:
                 error_message = "Set the hypothesis parameter."
+                raise ValueError(error_message)
             proj = self.projections[hypothesis]
             cook = self.cook_distances[hypothesis]
             cook_pval = self.cook_pvalues[hypothesis]
