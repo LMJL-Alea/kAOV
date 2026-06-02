@@ -794,8 +794,6 @@ class AOV:
             contrast_L is a contrast matrix in the form of a torch.tensor.
 
         """
-        if hypotheses is None and 'OneHot' in self.formula:
-            hypotheses = 'pairwise'
         if isinstance(hypotheses, str):
             if not hasattr(self, 'formula') or 'OneHot' not in self.formula:
                 warnings.warn("'pairwise' and 'one-vs-all' options for `hypotheses` "
@@ -1168,6 +1166,8 @@ class AOV:
         K_T = self._compute_K_T(t_max=t_max, n_anchors=n_anchors)
         if verbose > 0:
             print('-Testing hypotheses:')
+        if hypotheses is None and 'OneHot' in self.formula:
+            hypotheses = 'pairwise'
         hyps = self.set_hypotheses(hypotheses=hypotheses, by_level=by_level,
                                    test_intercept=test_intercept,
                                    true_proportions=true_proportions)
