@@ -1196,8 +1196,8 @@ class AOV:
             stats, pvals = self._compute_kernel_HL_test_statistic(K_T, D, len(L),
                                                                   t_max=t_max,
                                                                   f_norm=f_norm)
-            results_dict = {'TKHL': stats,
-                            'P-value': pvals}
+            results_dict = {'stat': stats,
+                            'pval': pvals}
             results[name] = pd.DataFrame(results_dict)
             results[name].index.name = 'Truncation'
             results[name].index += 1
@@ -1248,7 +1248,7 @@ class AOV:
             self.correct_pvalues(corrected_pvals_df, correction=correction, by_level=by_level)
             for hyp in hyps:
                 name, L = hyp
-                results[name]['P-value'] = corrected_pvals_df[name]
+                results[name]['pval'] = corrected_pvals_df[name]
         hypothesis_type = (hypotheses if hypotheses is None or type(hypotheses) == str
                            else 'custom')
         return KernelAOVResults(hyps, results, projections, 
@@ -1271,7 +1271,7 @@ class KernelAOVResults():
         A dictionary with keys corresponding to hypothesis names, and values
         to instances of pandas.DataFrame with the results of the corresponding
         tests. Each data frame contains two columns, the first containing the
-        truncated kernel Hotelling-Lawley test statistic (TKHL) values, and the
+        truncated kernel Hotelling-Lawley test statistic values, and the
         second containing the associated p-values, indexed by truncations of the
         residual covariance operator used in the calculations.
     projections : dict
@@ -1390,32 +1390,6 @@ class KernelAOVResults():
             float_format = '%.3f'
             summ.add_df(df, float_format=float_format)
         return summ
-
-    def summary1(self, t_max=5):
-        """
-        Prints a summary of the test (old version).
-
-        Parameters
-        ----------
-        t_max : int, optional
-            Maximal truncation to display. The default is 5.
-
-        """
-        _sum_obj = self._summary_obj(t_max=t_max)
-        print(_sum_obj)
-
-    def summary(self, t_max=3):
-        """
-        Prints a summary of the test (new version).
-
-        Parameters
-        ----------
-        t_max : int, optional
-            Maximal truncation to display. The default is 3.
-
-        """
-        _sum_obj = self._summary_obj2(t_max=t_max)
-        print(_sum_obj)
 
     def __str__(self):
         return self._summary_obj2().__str__()
@@ -1747,7 +1721,7 @@ class KernelAOVResults():
         plt.draw()
         return fig, axs
     
-    def test_summary_df(self, t, factor=None):
+    def summary(self, t, factor=None):
         """
         Creates a pandas.DataFrame with a summary of the test for a given truncation
         and factor (in the by-level case).
@@ -1772,26 +1746,26 @@ class KernelAOVResults():
             if factor is not None:
                 sum_df = pd.Series(index=['factor', 'stat', 'pval'], dtype=str)
                 sum_df['factor'] = factor
-                sum_df['stat'] = self.stats[factor].loc[t, 'TKHL']
-                sum_df['pval'] = self.stats[factor].loc[t, 'P-value']
+                sum_df['stat'] = self.stats[factor].loc[t, 'stat']
+                sum_df['pval'] = self.stats[factor].loc[t, 'pval']
             else:
                 sum_df = pd.DataFrame(columns=['factor', 'stat', 'pval'],
                                       index=np.arange(1, len(self.stats) + 1), 
                                       dtype=str)
                 for i, (hyp, stat) in enumerate(self.stats.items()):
                     sum_df.loc[i + 1, 'factor'] = hyp
-                    sum_df.loc[i + 1, 'stat'] = self.stats[hyp].loc[t, 'TKHL']
-                    sum_df.loc[i + 1, 'pval'] = self.stats[hyp].loc[t, 'P-value']
+                    sum_df.loc[i + 1, 'stat'] = self.stats[hyp].loc[t, 'stat']
+                    sum_df.loc[i + 1, 'pval'] = self.stats[hyp].loc[t, 'pval']
         else:
             if factor is None:
                 raise ValueError("Set the factor parameter (necessary in the by-level case).")
             else:
                 nb_factors = factor.count(':') + 1
-                if self.hypothesis_type == 'pairwise':
+                if self.hypothesis_type is None:
+                    factor_cols = [f'factor_{f + 1}' for f in range(nb_factors)]
+                else:
                     factor_cols = [f'factor_{f + 1}_1' for f in range(nb_factors)]
                     factor_cols.extend([f'factor_{f + 1}_2' for f in range(nb_factors)])
-                else:
-                    factor_cols = [f'factor_{f + 1}' for f in range(nb_factors)]
                 sum_df = pd.DataFrame(columns=factor_cols + ['stat', 'pval'],
                                       index=np.arange(1, len(self.stats) + 1), 
                                       dtype=str)
@@ -1802,8 +1776,10 @@ class KernelAOVResults():
                         levels = re.findall(r"\[(.*?)\]", hyp)
                         for j, lvl in enumerate(levels):
                             sum_df.iloc[i, j] = lvl
-                        sum_df.loc[i + 1, 'stat'] = self.stats[hyp].loc[t, 'TKHL']
-                        sum_df.loc[i + 1, 'pval'] = self.stats[hyp].loc[t, 'P-value']
+                        sum_df.loc[i + 1, 'stat'] = self.stats[hyp].loc[t, 'stat']
+                        sum_df.loc[i + 1, 'pval'] = self.stats[hyp].loc[t, 'pval']
+                        if self.hypothesis_type == 'one-vs-all':
+                            sum_df.iloc[i, nb_factors : 2 * nb_factors] = 'Grand Mean'
                 sum_df.dropna(axis=0, inplace=True)
                 sum_df.index = np.arange(1, len(sum_df) + 1)
         return sum_df
