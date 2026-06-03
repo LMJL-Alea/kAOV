@@ -1298,6 +1298,8 @@ class KernelAOVResults():
     by_level : bool, optional
         False if global (factor-wise) tests were perfromed, True if tests by 
         level or by a pair of levels were perfromed.
+    factor_info : dict
+        _factor_info attribute of the AOV class.
 
     Attributes:
     ----------
@@ -1331,23 +1333,25 @@ class KernelAOVResults():
         
     def summary(self, t, factor=None):
         """
-        Creates a pandas.DataFrame with a summary of the test for a given truncation
-        and factor (in the by-level case).
+        Creates a pandas.DataFrame or a distionary with a summary of the test 
+        for a given truncation and factor (in the by-level case).
 
         Parameters
         ----------
         t : int
             Truncation for which to return the test results.
         factor : str or None
-            None by default, which is acceptable if the test is global (not by level),
-            in which case the results of tests for each factor are returned. A factor
-            has to be specified in the by-level case, then returns the results of
-            tests on comparisons related with the chosen factor.
+            None by default, in which case the results of tests for each factor 
+            are returned. If the factor is specified, returns the results of 
+            tests on comparisons related with the chosen factor. 
 
         Returns
         -------
-        sum_df : pandas.DataFrame of pandas.Series
-            A data frame with the summary of test results.
+        sum_df : pandas.DataFrame or pandas.Series or dict
+            A data frame with the summary of test results. If not by_level and 
+            factor is specified, returns a row of this data frame corresponding
+            to the chosen factor. If by_level and factor is not specified, 
+            returns a dictionary with data frames for each factor.
 
         """
         if not self.by_level or self.hypothesis_type == 'custom':
@@ -1396,6 +1400,11 @@ class KernelAOVResults():
                 summ[fct] = sum_df
             if factor is not None:
                 summ = summ[factor]
+            else:
+                # Pop emty factors from the dictionary:
+                for key, val in summ.items():
+                    if val.empty:
+                        summ.pop(key)
         return summ
     
     def _summary_obj(self):
