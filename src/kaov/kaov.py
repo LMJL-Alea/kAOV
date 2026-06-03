@@ -1418,7 +1418,7 @@ class KernelAOVResults():
         for i, (key, df) in enumerate(summ.items()):
             summ_print.add_dict({'' : ''})
             df.index = [' |',] * len(df)
-            df = df.selfet_index()
+            df = df.reset_index()
             c = list(df.columns)
             c[0] = key + ' |'
             df.columns = c
