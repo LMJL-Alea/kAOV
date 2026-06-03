@@ -1254,7 +1254,7 @@ class AOV:
         return KernelAOVResults(hyps, results, projections, 
                                 cook_distances, cook_pvalues,
                                 hypothesis_type=hypothesis_type, 
-                                by_level=by_level)
+                                by_level=by_level, factor_info=self._factor_info)
 
 
 class KernelAOVResults():
@@ -1319,7 +1319,7 @@ class KernelAOVResults():
     """
 
     def __init__(self, hypotheses, stats, projections, cook_distances, 
-                 cook_pvalues, hypothesis_type, by_level):
+                 cook_pvalues, hypothesis_type, by_level, factor_info):
         self.hypotheses = hypotheses
         self.stats = stats
         self.projections = projections
@@ -1327,72 +1327,107 @@ class KernelAOVResults():
         self.cook_pvalues = cook_pvalues
         self.hypothesis_type = hypothesis_type
         self.by_level = by_level
-
-    def _summary_obj(self, t_max=5):
+        self._factor_info = factor_info
+        
+    def summary(self, t, factor=None):
         """
-        Creates a summary object to display a summary of the test (one block
-        per test).
+        Creates a pandas.DataFrame with a summary of the test for a given truncation
+        and factor (in the by-level case).
 
         Parameters
         ----------
-        t_max : int, optional
-            Maximal truncation to display. The default is 5.
+        t : int
+            Truncation for which to return the test results.
+        factor : str or None
+            None by default, which is acceptable if the test is global (not by level),
+            in which case the results of tests for each factor are returned. A factor
+            has to be specified in the by-level case, then returns the results of
+            tests on comparisons related with the chosen factor.
+
+        Returns
+        -------
+        sum_df : pandas.DataFrame of pandas.Series
+            A data frame with the summary of test results.
+
+        """
+        if not self.by_level or self.hypothesis_type == 'custom':
+            if factor is not None:
+                summ = pd.Series(index=['factor', 'stat', 'pval'], dtype=str)
+                summ['factor'] = factor
+                summ['stat'] = self.stats[factor].loc[t, 'stat']
+                summ['pval'] = self.stats[factor].loc[t, 'pval']
+            else:
+                summ = pd.DataFrame(columns=['factor', 'stat', 'pval'],
+                                      index=np.arange(1, len(self.stats) + 1), 
+                                      dtype=str)
+                for i, (hyp, stat) in enumerate(self.stats.items()):
+                    summ.loc[i + 1, 'factor'] = hyp
+                    summ.loc[i + 1, 'stat'] = self.stats[hyp].loc[t, 'stat']
+                    summ.loc[i + 1, 'pval'] = self.stats[hyp].loc[t, 'pval']
+        else:
+            summ = {}
+            if factor is None:
+                factors = list(self._factor_info.keys())
+            else:
+                factors = [factor, ]
+            for fct in factors:
+                nb_factors = fct.count(':') + 1
+                if self.hypothesis_type is None:
+                    factor_cols = [f'factor_{f + 1}' for f in range(nb_factors)]
+                else:
+                    factor_cols = [f'factor_{f + 1}_1' for f in range(nb_factors)]
+                    factor_cols.extend([f'factor_{f + 1}_2' for f in range(nb_factors)])
+                sum_df = pd.DataFrame(columns=factor_cols + ['stat', 'pval'],
+                                      index=np.arange(1, len(self.stats) + 1), 
+                                      dtype=str)
+                for i, (hyp, stat) in enumerate(self.stats.items()):
+                    is_factor_hyp = ((nb_factors == 1 and fct in hyp and ':' not in hyp)
+                                     or (nb_factors > 1 and np.all([f in hyp for f in fct.split(':')])))
+                    if is_factor_hyp:
+                        levels = re.findall(r"\[(.*?)\]", hyp)
+                        for j, lvl in enumerate(levels):
+                            sum_df.iloc[i, j] = lvl
+                        sum_df.loc[i + 1, 'stat'] = self.stats[hyp].loc[t, 'stat']
+                        sum_df.loc[i + 1, 'pval'] = self.stats[hyp].loc[t, 'pval']
+                        if self.hypothesis_type == 'one-vs-all':
+                            sum_df.iloc[i, nb_factors : 2 * nb_factors] = 'Grand Mean'
+                sum_df.dropna(axis=0, inplace=True)
+                sum_df.index = np.arange(1, len(sum_df) + 1)
+                summ[fct] = sum_df
+            if factor is not None:
+                summ = summ[factor]
+        return summ
+    
+    def _summary_obj(self):
+        """
+        Creates a summary object to display a summary of the test based on the 
+        `summary` method.
 
         Returns
         -------
         An instance of statsmodels.iolib.summary2
 
         """
-        summ = summary2.Summary()
-        summ.add_title('Kernel Analysis of Variance')
-        for i, key in enumerate(self.stats):
-            summ.add_dict({'': ''})
-            df = self.stats[key].iloc[:t_max].transpose()
-            df.columns = [f'T={t}' for t in df.columns]
-            df.index = ['| ' + ' ' * (7 - len(ind)) + ind for ind in df.index]
-            df = df.reset_index()
+        t = 1
+        float_format = '%.3f'
+        summ = self.summary(t=t)
+        if type(summ) != dict:
+            summ = {'Factor test' : summ}
+        summ_print = summary2.Summary()
+        summ_print.add_title(f'Kernel Analysis of Variance (t={t}):')
+        for i, (key, df) in enumerate(summ.items()):
+            summ_print.add_dict({'' : ''})
+            df.index = [' |',] * len(df)
+            df = df.selfet_index()
             c = list(df.columns)
-            c[0] = key + ' |  Trunc.'
+            c[0] = key + ' |'
             df.columns = c
-            df.index = ['', '']
-            float_format = '%.3f'
-            summ.add_df(df, float_format=float_format)
-        return summ
-
-    def _summary_obj2(self, t_max=3):
-        """
-        Creates a summary object to display a summary of the test (one block
-        per truncation).
-
-        Parameters
-        ----------
-        t_max : int, optional
-            Maximal truncation to display. The default is 3.
-
-        Returns
-        -------
-        An instance of statsmodels.iolib.summary2
-
-        """
-        summ = summary2.Summary()
-        summ.add_title('Kernel Analysis of Variance')
-        for t in range(1, t_max + 1):
-            summ.add_dict({'': ''})
-            dict_t = {key: self.stats[key].loc[t] for key in self.stats.keys()}
-            df = pd.DataFrame(dict_t).transpose()
-            max_str_len = max(df.index.str.len())
-            df.index = ['| ' + ' ' * (max_str_len - len(ind)) + ind for ind in df.index]
-            df = df.reset_index()
-            c = list(df.columns)
-            c[0] = f'Truncation {t} |' + ' ' * (max_str_len + 1)
-            df.columns = c
-            df.index = ['', ] * len(df.index)
-            float_format = '%.3f'
-            summ.add_df(df, float_format=float_format)
-        return summ
+            df.index = ['',] * len(df)
+            summ_print.add_df(df, float_format=float_format)
+        return summ_print
 
     def __str__(self):
-        return self._summary_obj2().__str__()
+        return self._summary_obj().__str__()
 
     def plot_density(self, t=100, tests=None, colormap='viridis', alpha=.5,
                      legend_fontsize=12, font_family='serif', figsize=None):
@@ -1720,69 +1755,6 @@ class KernelAOVResults():
                      fontsize=25, y=1.05)
         plt.draw()
         return fig, axs
-    
-    def summary(self, t, factor=None):
-        """
-        Creates a pandas.DataFrame with a summary of the test for a given truncation
-        and factor (in the by-level case).
-
-        Parameters
-        ----------
-        t : int
-            Truncation for which to return the test results.
-        factor : str or None
-            None by default, which is acceptable if the test is global (not by level),
-            in which case the results of tests for each factor are returned. A factor
-            has to be specified in the by-level case, then returns the results of
-            tests on comparisons related with the chosen factor.
-
-        Returns
-        -------
-        sum_df : pandas.DataFrame of pandas.Series
-            A data frame with the summary of test results.
-
-        """
-        if not self.by_level or self.hypothesis_type == 'custom':
-            if factor is not None:
-                sum_df = pd.Series(index=['factor', 'stat', 'pval'], dtype=str)
-                sum_df['factor'] = factor
-                sum_df['stat'] = self.stats[factor].loc[t, 'stat']
-                sum_df['pval'] = self.stats[factor].loc[t, 'pval']
-            else:
-                sum_df = pd.DataFrame(columns=['factor', 'stat', 'pval'],
-                                      index=np.arange(1, len(self.stats) + 1), 
-                                      dtype=str)
-                for i, (hyp, stat) in enumerate(self.stats.items()):
-                    sum_df.loc[i + 1, 'factor'] = hyp
-                    sum_df.loc[i + 1, 'stat'] = self.stats[hyp].loc[t, 'stat']
-                    sum_df.loc[i + 1, 'pval'] = self.stats[hyp].loc[t, 'pval']
-        else:
-            if factor is None:
-                raise ValueError("Set the factor parameter (necessary in the by-level case).")
-            else:
-                nb_factors = factor.count(':') + 1
-                if self.hypothesis_type is None:
-                    factor_cols = [f'factor_{f + 1}' for f in range(nb_factors)]
-                else:
-                    factor_cols = [f'factor_{f + 1}_1' for f in range(nb_factors)]
-                    factor_cols.extend([f'factor_{f + 1}_2' for f in range(nb_factors)])
-                sum_df = pd.DataFrame(columns=factor_cols + ['stat', 'pval'],
-                                      index=np.arange(1, len(self.stats) + 1), 
-                                      dtype=str)
-                for i, (hyp, stat) in enumerate(self.stats.items()):
-                    is_factor_hyp = ((nb_factors == 1 and factor in hyp and ':' not in hyp)
-                                     or (nb_factors > 1 and np.all([f in hyp for f in factor.split(':')])))
-                    if is_factor_hyp:
-                        levels = re.findall(r"\[(.*?)\]", hyp)
-                        for j, lvl in enumerate(levels):
-                            sum_df.iloc[i, j] = lvl
-                        sum_df.loc[i + 1, 'stat'] = self.stats[hyp].loc[t, 'stat']
-                        sum_df.loc[i + 1, 'pval'] = self.stats[hyp].loc[t, 'pval']
-                        if self.hypothesis_type == 'one-vs-all':
-                            sum_df.iloc[i, nb_factors : 2 * nb_factors] = 'Grand Mean'
-                sum_df.dropna(axis=0, inplace=True)
-                sum_df.index = np.arange(1, len(sum_df) + 1)
-        return sum_df
 
     def projection_summary_df(self, t, factor=None, hypothesis=None):
         """
