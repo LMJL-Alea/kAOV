@@ -1805,7 +1805,7 @@ class KernelAOVResults():
             factor_cols = [f'factor_{f + 1}' for f in range(nb_factors)]
             if not self.by_level:
                 t_cols = (self.projections[factor].columns[:-1] if t is None 
-                          else np.squeeze([t, ]))
+                          else np.ravel([t, ]))
                 proj = self.projections[factor]
                 sum_df = pd.DataFrame(columns=factor_cols + [f'proj_{i}' for i in t_cols],
                                       index=proj.index, dtype=str)
@@ -1816,7 +1816,7 @@ class KernelAOVResults():
                     sum_df[fct] = factors_split.str.get(i).str.split('[').str.get(1).str.split(']').str.get(0)
             elif self.hypothesis_type == 'one-vs-all':
                 t_cols = (self.projections[factor].columns[:-1] if t is None 
-                          else np.squeeze([t, ]))
+                          else np.ravel([t, ]))
                 sum_df = pd.DataFrame(columns=factor_cols + [f'proj_{i}' for i in t_cols],
                                       index=list(self.projections.values())[0].index, 
                                       dtype=str)
@@ -1838,7 +1838,7 @@ class KernelAOVResults():
                     raise ValueError(error_message)
                 else:
                     t_cols = (self.projections[hypothesis].columns[:-1] if t is None 
-                              else np.squeeze([t, ]))
+                              else np.ravel([t, ]))
                     proj = self.projections[hypothesis]
                     where_hyp = proj[hypothesis] != 'NA'
                     sum_df = pd.DataFrame(columns=factor_cols + [f'proj_{i}' for i in t_cols],
@@ -1860,7 +1860,7 @@ class KernelAOVResults():
                 error_message = "Set the hypothesis parameter."
                 raise ValueError(error_message)
             t_cols = (self.projections[hypothesis].columns[:-1] if t is None 
-                      else np.squeeze([t, ]))
+                      else np.ravel([t, ]))
             proj = self.projections[hypothesis]
             sum_df = pd.DataFrame(columns=[f'proj_{i}' for i in t_cols],
                                   index=proj.index, 
@@ -1909,7 +1909,7 @@ class KernelAOVResults():
             factor_cols = [f'factor_{f + 1}' for f in range(nb_factors)]
             if not self.by_level:
                 t_cols = (self.cook_distances[factor].columns[:-1] if t is None 
-                          else np.squeeze([t, ]))
+                          else np.ravel([t, ]))
                 cook = self.cook_distances[factor]
                 cook_pval = self.cook_pvalues[factor]
                 sum_df = pd.DataFrame(columns=(factor_cols+ [f'cook_{i}' for i in t_cols]
@@ -1923,7 +1923,7 @@ class KernelAOVResults():
                     sum_df[fct] = factors_split.str.get(i).str.split('[').str.get(1).str.split(']').str.get(0)
             elif self.hypothesis_type == 'one-vs-all':
                 t_cols = (self.cook_distances[factor].columns[:-1] if t is None 
-                          else np.squeeze([t, ]))
+                          else np.ravel([t, ]))
                 sum_df = pd.DataFrame(columns=(factor_cols + [f'cook_{i}' for i in t_cols]
                                                + [f'cook_pval_{i}' for i in t_cols]),
                                       index=list(self.cook_distances.values())[0].index, 
@@ -1948,7 +1948,7 @@ class KernelAOVResults():
                     raise ValueError(error_message)
                 else:
                     t_cols = (self.projections[hypothesis].columns[:-1] if t is None 
-                              else np.squeeze([t, ]))
+                              else np.ravel([t, ]))
                     cook = self.cook_distances[hypothesis]
                     cook_pval = self.cook_pvalues[hypothesis]
                     where_hyp = cook[hypothesis] != 'NA'
@@ -1973,7 +1973,7 @@ class KernelAOVResults():
                 error_message = "Set the hypothesis parameter."
                 raise ValueError(error_message)
             t_cols = (self.projections[hypothesis].columns[:-1] if t is None 
-                      else np.squeeze([t, ]))
+                      else np.ravel([t, ]))
             cook = self.cook_distances[hypothesis]
             cook_pval = self.cook_pvalues[hypothesis]
             sum_df = pd.DataFrame(columns=([f'cook_{i}' for i in t_cols]
