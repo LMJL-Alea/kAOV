@@ -1815,7 +1815,7 @@ class KernelAOVResults():
                 for i, fct in enumerate(factor_cols):
                     sum_df[fct] = factors_split.str.get(i).str.split('[').str.get(1).str.split(']').str.get(0)
             elif self.hypothesis_type == 'one-vs-all':
-                t_cols = (self.projections[factor].columns[:-1] if t is None 
+                t_cols = (list(self.projections.values())[0].columns[:-1] if t is None 
                           else np.ravel([t, ]))
                 sum_df = pd.DataFrame(columns=factor_cols + [f'proj_{i}' for i in t_cols],
                                       index=list(self.projections.values())[0].index, 
@@ -1853,13 +1853,14 @@ class KernelAOVResults():
                     for i, fct in enumerate(factor_cols):
                         sum_df.loc[where_left, fct] = levels[i]
                         sum_df.loc[where_right, fct] = levels[nb_factors + i]
+            sum_df.dropna(axis=1, inplace=True)
             sum_df.dropna(axis=0, inplace=True)
         ### Other cases (custom contrasts, other coding schemes...):
         else:
             if hypothesis is None:
                 error_message = "Set the hypothesis parameter."
                 raise ValueError(error_message)
-            t_cols = (self.projections[hypothesis].columns[:-1] if t is None 
+            t_cols = (self.stats[hypothesis].index if t is None 
                       else np.ravel([t, ]))
             proj = self.projections[hypothesis]
             sum_df = pd.DataFrame(columns=[f'proj_{i}' for i in t_cols],
@@ -1867,6 +1868,7 @@ class KernelAOVResults():
                                   dtype=str)
             for i in t_cols:
                 sum_df.loc[:, f'proj_{i}'] = proj.loc[:, i]
+        sum_df.dropna(axis=1, inplace=True)
         return sum_df
     
     def get_cook(self, t=None, factor=None, hypothesis=None):
@@ -1922,7 +1924,7 @@ class KernelAOVResults():
                 for i, fct in enumerate(factor_cols):
                     sum_df[fct] = factors_split.str.get(i).str.split('[').str.get(1).str.split(']').str.get(0)
             elif self.hypothesis_type == 'one-vs-all':
-                t_cols = (self.cook_distances[factor].columns[:-1] if t is None 
+                t_cols = (list(self.cook_distances.values())[0].columns[:-1] if t is None 
                           else np.ravel([t, ]))
                 sum_df = pd.DataFrame(columns=(factor_cols + [f'cook_{i}' for i in t_cols]
                                                + [f'cook_pval_{i}' for i in t_cols]),
@@ -1947,7 +1949,7 @@ class KernelAOVResults():
                     error_message += "the by-level pairwise case)."
                     raise ValueError(error_message)
                 else:
-                    t_cols = (self.projections[hypothesis].columns[:-1] if t is None 
+                    t_cols = (list(self.cook_distances.values())[0].columns[:-1] if t is None 
                               else np.ravel([t, ]))
                     cook = self.cook_distances[hypothesis]
                     cook_pval = self.cook_pvalues[hypothesis]
@@ -1966,13 +1968,14 @@ class KernelAOVResults():
                     for i, fct in enumerate(factor_cols):
                         sum_df.loc[where_left, fct] = levels[i]
                         sum_df.loc[where_right, fct] = levels[nb_factors + i]
+            sum_df.dropna(axis=1, inplace=True)
             sum_df.dropna(axis=0, inplace=True)
         ### Other cases (custom contrasts, other coding schemes...):
         else:
             if hypothesis is None:
                 error_message = "Set the hypothesis parameter."
                 raise ValueError(error_message)
-            t_cols = (self.projections[hypothesis].columns[:-1] if t is None 
+            t_cols = (self.stats[hypothesis].index if t is None 
                       else np.ravel([t, ]))
             cook = self.cook_distances[hypothesis]
             cook_pval = self.cook_pvalues[hypothesis]
@@ -1983,4 +1986,5 @@ class KernelAOVResults():
             for i in t_cols:
                 sum_df[f'cook_{i}'] = cook[i]
                 sum_df[f'cook_pval_{i}'] = cook_pval[i]
+        sum_df.dropna(axis=1, inplace=True)
         return sum_df
