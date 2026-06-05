@@ -602,7 +602,7 @@ class AOV:
                                     for _name, _slice in aov_obj._factor_info.items()}
         return aov_obj
         
-    def compute_diagnostics(self, t_max=100, n_anchors=None):
+    def compute_diagnostics(self, n_trunc=100, n_anchors=None):
         """
         Calculates diagnostics associated with the model and saves them in the
         `diagnostics` attribute. The latter is a dictionary containing the
@@ -616,11 +616,11 @@ class AOV:
     
         Parameters
         ----------
-        t_max : int, optional
+        n_trunc : int, optional
             Maximal truncation for projections calculation, the default is 100.
         n_anchors : int, optional
             Number of anchors used in the Nystrom method. If None, the value is
-            set at `t_max`.
+            set at `n_trunc`.
     
         """
         data = self.data_nystrom if self.data_nystrom is not None else self.data
@@ -628,16 +628,16 @@ class AOV:
         sp, U_norm = data._diagonalize_residual_covariance(K)
         if self.data_nystrom is not None:
             if n_anchors is None:
-                n_anchors = t_max
+                n_anchors = n_trunc
             norm_anchors = U_norm[:, : n_anchors]
             sp, U_a = self._diagonalize_covariance_of_anchor_projected_residuals(norm_anchors)
             U_norm = multi_dot([norm_anchors, U_a])
             K = self.kernel(self.data.endog, self.data_nystrom.endog)
         else:
             U_norm = sp ** (1/2) * U_norm
-        t_max = min(t_max, (sp > 0).sum())
-        U_norm_T = U_norm[:, : t_max]
-        columns = list(range(1, t_max + 1))
+        n_trunc = min(n_trunc, (sp > 0).sum())
+        U_norm_T = U_norm[:, : n_trunc]
+        columns = list(range(1, n_trunc + 1))
         embeddings = pd.DataFrame(multi_dot([K, U_norm_T]),
                                   index=self.data.index, columns=columns)
         predictions = pd.DataFrame(multi_dot([self.data._ProjImX, K, U_norm_T]),
@@ -648,7 +648,7 @@ class AOV:
                                'Predictions': predictions,
                                'Residuals': residuals}
 
-    def plot_diagnostics(self, t=100, diagnostic='residuals', t_max=100,
+    def plot_diagnostics(self, trunc=100, diagnostic='residuals', n_trunc=100,
                          n_anchors=None, colormap='viridis', alpha=.75, 
                          legend_fontsize=12, font_family='serif', figsize=None):
         """
@@ -660,16 +660,16 @@ class AOV:
 
         Parameters
         ----------
-        t : int, optional
-            Axis to plot, by default equal to the maximal truncation.
+        trunc : int, optional
+            Truncation to plot, by default equal to the maximal truncation.
         diagnostic : str, optional
             The type of diagnostic to plot against the predictions.
             The default is 'residuals', the alternative is 'embeddings'.
-        t_max : int, optional
+        n_trunc : int, optional
             Maximal truncation for projections calculation, the default is 100.
         n_anchors : int, optional
             Number of anchors used in the Nystrom method. If None, the value is
-            set at `t_max`.
+            set at `n_trunc`.
         colormap : str, optional
             The name of a matplotlib colormap to be used for different factor
             levels. The default is 'viridis'.
@@ -694,13 +694,13 @@ class AOV:
             An Axes object of the plot.
 
         """
-        if not self.diagnostics or t not in self.diagnostics['Predictions']:
-            self.compute_diagnostics(t_max=max(t, t_max), n_anchors=n_anchors)
+        if not self.diagnostics or trunc not in self.diagnostics['Predictions']:
+            self.compute_diagnostics(n_trunc=max(trunc, n_trunc), n_anchors=n_anchors)
 
         factors = self.data.meta.columns
         nb_factors = len(factors)
-        T_max = len(self.diagnostics['Predictions'].columns)
-        t = min(t, T_max)
+        n_trunc = len(self.diagnostics['Predictions'].columns)
+        t = min(trunc, n_trunc)
         pred = self.diagnostics['Predictions']
         a, b = pred[t].min(), pred[t].max()
         x = np.arange(a - (b - a) / 10, b + (b - a) / 10, (b - a) / 12)
@@ -900,7 +900,7 @@ class AOV:
         K_anchor_projected *= (1/self.data.nobs)
         return ordered_eigsy(K_anchor_projected)
 
-    def _compute_K_T(self, t_max=100, n_anchors=None):
+    def _compute_K_T(self, n_trunc=100, n_anchors=None):
         """
         Intermediate quantity used in statistics calculations, based on a
         transformation of the gram matrix K.
@@ -914,12 +914,12 @@ class AOV:
             sp, U_a = self._diagonalize_covariance_of_anchor_projected_residuals(norm_anchors)
             U_norm = multi_dot([norm_anchors, (sp ** (-1/2) * U_a)])
             K = self.kernel(self.data_nystrom.endog, self.data.endog)
-        t_max = min(t_max, (sp > 0).sum())
-        U_norm_T = U_norm[:, : t_max]
+        n_trunc = min(n_trunc, (sp > 0).sum())
+        U_norm_T = U_norm[:, : n_trunc]
         K_T = multi_dot([U_norm_T.T, K])
         return K_T
 
-    def _compute_kernel_HL_test_statistic(self, K_T, D, d, t_max=100, f_norm=True):
+    def _compute_kernel_HL_test_statistic(self, K_T, D, d, n_trunc=100, f_norm=True):
         """
         Computes the truncated kernel Hotelling-Lawley test statistic based on
         some intermediate quantities.
@@ -928,7 +928,7 @@ class AOV:
         K_T_D_K_T = multi_dot([K_T, D, K_T.T])
         stats = []
         pvals = []
-        for t in range(1, t_max):
+        for t in range(1, n_trunc):
             norm_factor = ((self.data.nobs - self.data.nlvl) / (self.data.nobs * d * t)
                            if f_norm else 1)
             stat = trace(K_T_D_K_T[:t, :t]).item() * norm_factor
@@ -981,7 +981,7 @@ class AOV:
         proj.columns += 1
         return proj
 
-    def compute_cook_distances(self, L, t_max=100, normalize=True):
+    def compute_cook_distances(self, L, n_trunc=100, normalize=True):
         """
         Computes influence measures in the form of Cook's distances for each
         observation as well as the corresponding p-values. The p-values are
@@ -992,7 +992,7 @@ class AOV:
         ----------
         L : torch.tensor
             Contrast matrix, defining a statistical test of interest.
-        t_max : int, optional
+        n_trunc : int, optional
             Maximal truncation of the residual covariance operator,
             the default is 100.
         normalize : bool, optional
@@ -1022,10 +1022,10 @@ class AOV:
         hii_star = diag(multi_dot([self.data.exog, self.data._XXinv, L_inv, L, XX, L_inv, L, 
                                    self.data._XXinv, self.data.exog.T]))
         C_i = hii_star * (self.data.nobs - L.shape[0]) / (L.shape[0] * one_minus_hii)
-        K_T = self._compute_K_T(t_max=t_max)
+        K_T = self._compute_K_T(n_trunc=n_trunc)
         cook_distances = {}
         cook_pvalues = {}
-        for t in range(1, t_max + 1):
+        for t in range(1, n_trunc + 1):
             # Cook distances:
             cook_traces = diag(multi_dot([self.data._ProjImXorthogonal, K_T[:t].T,
                                           K_T[:t], self.data._ProjImXorthogonal]))
@@ -1072,7 +1072,7 @@ class AOV:
         pvalues.clip(upper=1, inplace=True)
 
     def test(self, hypotheses=None, hypotheses_subset=None,
-             by_level=False, t_max=100, correction=None, test_intercept=False,
+             by_level=False, n_trunc=100, correction=None, test_intercept=False,
              true_proportions=False, center_projections=True, verbose=0,
              n_anchors=None, f_norm=True, skip_projections_and_cook=False,
              norm_cook=True):
@@ -1102,7 +1102,7 @@ class AOV:
         by_level : bool, optional
             If False (default), computes the global test. If True, computes the
             test by level or by a pair of levels.
-        t_max : int, optional
+        n_trunc : int, optional
             Maximal truncation for statistics calculation, the default is 100.
         correction : str or None, optional
             Relevent for multiple test comparisons, in particular when
@@ -1126,7 +1126,7 @@ class AOV:
             the factor mean.
         n_anchors : int, optional
             Number of anchors used in the Nystrom method. If None, the value is
-            set at `t_max`.
+            set at `n_trunc`.
         verbose : int, optional
             The higher the verbosity, the more messages keeping track of
             computations. The default is 0.
@@ -1162,8 +1162,8 @@ class AOV:
             warnings.simplefilter("always")
         K = self.kernel(self.data.endog)
         if n_anchors is None:
-            n_anchors = t_max
-        K_T = self._compute_K_T(t_max=t_max, n_anchors=n_anchors)
+            n_anchors = n_trunc
+        K_T = self._compute_K_T(n_trunc=n_trunc, n_anchors=n_anchors)
         if verbose > 0:
             print('-Testing hypotheses:')
         if hypotheses is None and 'OneHot' in self.formula:
@@ -1194,7 +1194,7 @@ class AOV:
             L = L.unsqueeze(0) if L.dim() == 1 else L
             D = self._compute_D(L)
             stats, pvals = self._compute_kernel_HL_test_statistic(K_T, D, len(L),
-                                                                  t_max=t_max,
+                                                                  n_trunc=n_trunc,
                                                                   f_norm=f_norm)
             results_dict = {'stat': stats,
                             'pval': pvals}
@@ -1209,7 +1209,7 @@ class AOV:
                 projections[name] = self.project_on_discriminant(K, K_T, D,
                                                                  center=center_projections)
                 (cook_distances[name],
-                 cook_pvalues[name]) = self.compute_cook_distances(L, t_max=t_max,
+                 cook_pvalues[name]) = self.compute_cook_distances(L, n_trunc=n_trunc,
                                                                    normalize=norm_cook)
                 if not hasattr(self, 'formula'):
                     projections[name][name] = np.nan
@@ -1331,14 +1331,14 @@ class KernelAOVResults():
         self.by_level = by_level
         self._factor_info = factor_info
         
-    def summary(self, t, factor=None):
+    def summary(self, trunc, factor=None):
         """
         Creates a pandas.DataFrame or a distionary with a summary of the test 
         for a given truncation and factor (in the by-level case).
 
         Parameters
         ----------
-        t : int
+        trunc : int
             Truncation for which to return the test results.
         factor : str or None
             None by default, in which case the results of tests for each factor 
@@ -1358,16 +1358,16 @@ class KernelAOVResults():
             if factor is not None:
                 summ = pd.Series(index=['factor', 'stat', 'pval'], dtype=str)
                 summ['factor'] = factor
-                summ['stat'] = self.stats[factor].loc[t, 'stat']
-                summ['pval'] = self.stats[factor].loc[t, 'pval']
+                summ['stat'] = self.stats[factor].loc[trunc, 'stat']
+                summ['pval'] = self.stats[factor].loc[trunc, 'pval']
             else:
                 summ = pd.DataFrame(columns=['factor', 'stat', 'pval'],
                                       index=np.arange(1, len(self.stats) + 1), 
                                       dtype=str)
                 for i, (hyp, stat) in enumerate(self.stats.items()):
                     summ.loc[i + 1, 'factor'] = hyp
-                    summ.loc[i + 1, 'stat'] = self.stats[hyp].loc[t, 'stat']
-                    summ.loc[i + 1, 'pval'] = self.stats[hyp].loc[t, 'pval']
+                    summ.loc[i + 1, 'stat'] = self.stats[hyp].loc[trunc, 'stat']
+                    summ.loc[i + 1, 'pval'] = self.stats[hyp].loc[trunc, 'pval']
         else:
             summ = {}
             if factor is None:
@@ -1391,8 +1391,8 @@ class KernelAOVResults():
                         levels = re.findall(r"\[(.*?)\]", hyp)
                         for j, lvl in enumerate(levels):
                             sum_df.iloc[i, j] = lvl
-                        sum_df.loc[i + 1, 'stat'] = self.stats[hyp].loc[t, 'stat']
-                        sum_df.loc[i + 1, 'pval'] = self.stats[hyp].loc[t, 'pval']
+                        sum_df.loc[i + 1, 'stat'] = self.stats[hyp].loc[trunc, 'stat']
+                        sum_df.loc[i + 1, 'pval'] = self.stats[hyp].loc[trunc, 'pval']
                         if self.hypothesis_type == 'one-vs-all':
                             sum_df.iloc[i, nb_factors : 2 * nb_factors] = 'Grand Mean'
                 sum_df.dropna(axis=0, inplace=True)
@@ -1426,7 +1426,7 @@ class KernelAOVResults():
         if type(summ) != dict:
             summ = {'Factor test' : summ}
         summ_print = summary2.Summary()
-        summ_print.add_title(f'Kernel Analysis of Variance (t={t}):')
+        summ_print.add_title(f'Kernel Analysis of Variance (trunc. {t}):')
         for i, (key, df) in enumerate(summ.items()):
             summ_print.add_dict({'' : ''})
             df.index = [' |',] * len(df)
@@ -1441,7 +1441,7 @@ class KernelAOVResults():
     def __str__(self):
         return self._summary_obj().__str__()
 
-    def plot_density(self, t=100, tests=None, colormap='viridis', alpha=.5,
+    def plot_density(self, comp=100, tests=None, colormap='viridis', alpha=.5,
                      legend_fontsize=12, font_family='serif', figsize=None):
         """
         Plots kernel-densities of projections of the embeddings on the chosen
@@ -1450,8 +1450,8 @@ class KernelAOVResults():
 
         Parameters
         ----------
-        t : int, optional
-            Axis to plot, i.e. the embeddings are projected on the t-th
+        comp : int, optional
+            Component to plot, i.e. the embeddings are projected on the comp-th
             eigenfunction.
         tests : list of strings or None
             List containing names of tests to plot, out of all the tests in
@@ -1491,7 +1491,7 @@ class KernelAOVResults():
         for j, test in enumerate(tests):
             ax = axs if nb_tests == 1 else axs[j]
             T_max = len(self.projections[test].columns) - 1
-            t = min(t, T_max)
+            t = min(comp, T_max)
             proj_j = self.projections[test]
             test_lvls = proj_j[test].unique()
             test_lvls = test_lvls[test_lvls != 'NA']  # extract relevant observations
@@ -1521,12 +1521,12 @@ class KernelAOVResults():
             ax.set_xlabel('Discriminant axis', fontsize=14)
             ax.set_ylabel('Density', fontsize=14)
         plt.tight_layout()
-        fig.suptitle(f'Discriminant axis projection density (t={t})',
+        fig.suptitle(f'Discriminant axis projection density (trunc. {t})',
                      fontsize=25, y=1.05)
         plt.draw()
         return fig, axs
     
-    def plot_mean_embedding_projections(self, t1=1, t2=2, tests=None, 
+    def plot_mean_embedding_projections(self, comp1=1, comp2=2, tests=None, 
                                         figsize=None, ylim=None, xlim=None,
                                         alpha=1, s=50, marker='o', 
                                         colors=None, colormap='viridis',
@@ -1539,12 +1539,12 @@ class KernelAOVResults():
 
         Parameters
         ----------
-        t1 : int, optional
-            Axis x of the plot, i.e. the mean embeddings are projected on the 
-            t1-th eigenfunction.
-        t2 : int, optional
-            Axis y of the plot, i.e. the mean embeddings are projected on the 
-            t2-th eigenfunction.
+        comp1 : int, optional
+            Component x of the plot, i.e. the mean embeddings are projected on the 
+            comp1-th eigenfunction.
+        comp2 : int, optional
+            Component y of the plot, i.e. the mean embeddings are projected on the 
+            comp2-th eigenfunction.
         tests : list of strings or None
             List containing names of tests to plot, out of all the tests in
             the KernelAOVResults object (particularly useful with the by_level
@@ -1611,8 +1611,8 @@ class KernelAOVResults():
             ax.axvline(0, color='grey', linestyle='--', alpha=0.5)
             ax.axhline(0, color='grey', linestyle='--', alpha=0.5)
             proj_j = self.projections[test]
-            t1_j = t1
-            t2_j = t1_j if t2 not in proj_j.columns else t2 # sometimes only one axis available
+            t1_j = comp1
+            t2_j = t1_j if comp2 not in proj_j.columns else comp2 # sometimes only one axis available
             test_lvls = proj_j[test].unique()
             test_lvls = test_lvls[test_lvls != 'NA']  # extract relevant observations
             nb_lvls = len(test_lvls)
@@ -1650,8 +1650,8 @@ class KernelAOVResults():
                 ax.legend(bbox_to_anchor=(1.01, 0.5), loc='center left',
                           fontsize=legend_fontsize)
             ax.set_title(test, fontsize=18)
-            ax.set_xlabel(f'Discriminant axis: t={t1_j}', fontsize=14)
-            ax.set_ylabel(f'Discriminant axis: t={t2_j}', fontsize=14)
+            ax.set_xlabel(f'Discriminant axis {t1_j}', fontsize=14)
+            ax.set_ylabel(f'Discriminant axis {t2_j}', fontsize=14)
         plt.tight_layout()
         if figtitle is not None:
             fig.suptitle(figtitle)
@@ -1661,7 +1661,7 @@ class KernelAOVResults():
         plt.draw()
         return fig, axs
 
-    def plot_influence(self, t1=100, t2=100, tests=None,
+    def plot_influence(self, trunc=100, comp=100, tests=None,
                        marker='o', colors=None, colormap='viridis',
                        font_family='serif', legend=True, alpha=.5, 
                        legend_fontsize=12, figsize=None):
@@ -1673,12 +1673,12 @@ class KernelAOVResults():
 
         Parameters
         ----------
-        t1 : int, optional
+        trunc : int, optional
             Truncation of the resdual covariance operator used for the Cook's
             distance calculation.
-        t2 : int, optional
-            Axis of the projections, i.e. the embeddings are projected on the t-th
-            eigenfunction.
+        comp : int, optional
+            Component of the projections, i.e. the embeddings are projected on 
+            the comp-th eigenfunction.
         tests : list of strings
             List containing a list of tests to plot, out of all the tests in
             the KernelAOVResults object (particularly useful with the by_level
@@ -1729,9 +1729,8 @@ class KernelAOVResults():
         fig, axs = plt.subplots(ncols=nb_tests, figsize=figsize)
         for j, test in enumerate(tests):
             ax = axs if nb_tests == 1 else axs[j]
-            T_max = len(self.projections[test].columns) - 1
-            t1 = min(t1, T_max)
-            t2 = min(t2, T_max)
+            t1 = min(trunc, len(self.stats[test].index))
+            t2 = min(comp, len(self.projections[test].columns) - 1)
             cook_j = self.cook_distances[test]
             proj_j = self.projections[test]
             test_lvls = cook_j[test].unique()
@@ -1763,34 +1762,35 @@ class KernelAOVResults():
                           fontsize=legend_fontsize)
             ax.set_title(test, fontsize=18)
         plt.tight_layout()
-        fig.suptitle(f"Cook's distances (t={t1}) against projections (t={t2})",
+        fig.suptitle(f"Cook's distances (trunc. {t1}) against projections (comp. {t2})",
                      fontsize=25, y=1.05)
         plt.draw()
         return fig, axs
 
-    def get_projections(self, t=None, factor=None, hypothesis=None):
+    def get_projections(self, n_comp=None, factor=None, hypothesis=None):
         """
         Creates a pandas.DataFrame with the discriminant axis projections
-        associated with the test for a given component, factor 
+        associated with the test for a given number of components, factor 
         (for all tests of type 'pairwise' and 'one-vs-all') and
         hypothesis (in the by-level cases and for user-specified tests).
 
         Parameters
         ----------
-        t : int, list or None
-            Discriminant axis/axes component for which to return the results. 
-            If None (default), projections on all available axes are returned.
+        n_comp : int or None
+            Number of discriminant axis components for which to return the 
+            results. If None (default), projections on all available components 
+            are returned.
         factor : str or None
             None by default (acceptable for user-specified tests) only. A factor
             has to be specified in all other cases, then returns the results of
-            tests on comparisons related with the chosen factor. Factor names are 
-            keys of the `_factor_info` attribute of the AOV class.
+            tests on comparisons related with the chosen factor. Factor names 
+            are keys of the `_factor_info` attribute of the AOV class.
         hypothesis : str or None
             None by default, which is acceptable if the test is global or of type
-            'one-vs-all'. In the by-level pairwise or custom test cases a hypothesis
-            has to be specified. The list of possible hypothesis names is accessible
-            through the `hypotheses` attribute of the KernelAOVResults class (first
-            element of each tuple).
+            'one-vs-all'. In the by-level pairwise or custom test cases a 
+            hypothesis has to be specified. The list of possible hypothesis 
+            names is accessible through the `hypotheses` attribute of the 
+            KernelAOVResults class (first element of each tuple).
 
         Returns
         -------
@@ -1807,8 +1807,9 @@ class KernelAOVResults():
             nb_factors = factor.count(':') + 1
             factor_cols = [f'factor_{f + 1}' for f in range(nb_factors)]
             if not self.by_level:
-                t_cols = (self.projections[factor].columns[:-1] if t is None 
-                          else np.ravel([t, ]))
+                t_cols = self.projections[factor].columns[:-1] 
+                if n_comp is not None:
+                          t_cols = t_cols[:n_comp]
                 proj = self.projections[factor]
                 sum_df = pd.DataFrame(columns=factor_cols + [f'proj_{i}' for i in t_cols],
                                       index=proj.index, dtype=str)
@@ -1819,7 +1820,7 @@ class KernelAOVResults():
                     sum_df[fct] = factors_split.str.get(i).str.split('[').str.get(1).str.split(']').str.get(0)
             elif self.hypothesis_type == 'one-vs-all':
                 # Only one direction in the by-level case:
-                t_cols = ([1, ] if t is None else np.ravel([t, ]))
+                t_cols = [1, ]
                 sum_df = pd.DataFrame(columns=factor_cols + [f'proj_{i}' for i in t_cols],
                                       index=list(self.projections.values())[0].index, 
                                       dtype=str)
@@ -1840,7 +1841,7 @@ class KernelAOVResults():
                     error_message += "the by-level pairwise case)."
                     raise ValueError(error_message)
                 else:
-                    t_cols = ([1, ] if t is None else np.ravel([t, ]))
+                    t_cols = [1, ]
                     proj = self.projections[hypothesis]
                     where_hyp = proj[hypothesis] != 'NA'
                     sum_df = pd.DataFrame(columns=factor_cols + [f'proj_{i}' for i in t_cols],
@@ -1863,10 +1864,11 @@ class KernelAOVResults():
                 error_message = "Set the hypothesis parameter."
                 raise ValueError(error_message)
             if self.by_level:
-                t_cols = ([1, ] if t is None else np.ravel([t, ]))
+                t_cols = [1, ]
             else:
-                t_cols = (self.projections[hypothesis].columns if t is None 
-                          else np.ravel([t, ]))
+                t_cols = self.projections[hypothesis].columns
+                if n_comp is not None:
+                          t_cols = t_cols[:n_comp]
             proj = self.projections[hypothesis]
             sum_df = pd.DataFrame(columns=[f'proj_{i}' for i in t_cols],
                                   index=proj.index, 
@@ -1876,18 +1878,18 @@ class KernelAOVResults():
         sum_df.dropna(axis=1, how='all', inplace=True)
         return sum_df
     
-    def get_cook(self, t=None, factor=None, hypothesis=None):
+    def get_cook(self, n_trunc=None, factor=None, hypothesis=None):
         """
         Creates a pandas.DataFrame with Cook's distances and their
-        p-values associated with the test for a given truncation, 
+        p-values associated with the test for given truncations, 
         factor (for all tests of type 'pairwise' and 'one-vs-all') and
         hypothesis (in the by-level cases and for user-specified tests).
 
         Parameters
         ----------
-        t : int, list or None
-            Truncation for which to return the results. If None (default), 
-            Cook's distances are returned for all available truncations.
+        n_trunc : int or None
+            Number of truncations for which to return the results. If None 
+            (default), Cook's distances are returned for all available truncations.
         factor : str or None
             None by default (acceptable for user-specified tests) only. A factor
             has to be specified in all other cases, then returns the results of
@@ -1915,8 +1917,9 @@ class KernelAOVResults():
             nb_factors = factor.count(':') + 1
             factor_cols = [f'factor_{f + 1}' for f in range(nb_factors)]
             if not self.by_level:
-                t_cols = (self.cook_distances[factor].columns[:-1] if t is None 
-                          else np.ravel([t, ]))
+                t_cols = self.cook_distances[factor].columns[:-1]
+                if n_trunc is not None:
+                          t_cols = t_cols[:n_trunc]
                 cook = self.cook_distances[factor]
                 cook_pval = self.cook_pvalues[factor]
                 sum_df = pd.DataFrame(columns=(factor_cols+ [f'cook_{i}' for i in t_cols]
@@ -1929,8 +1932,9 @@ class KernelAOVResults():
                 for i, fct in enumerate(factor_cols):
                     sum_df[fct] = factors_split.str.get(i).str.split('[').str.get(1).str.split(']').str.get(0)
             elif self.hypothesis_type == 'one-vs-all':
-                t_cols = (list(self.cook_distances.values())[0].columns[:-1] if t is None 
-                          else np.ravel([t, ]))
+                t_cols = list(self.cook_distances.values())[0].columns[:-1]
+                if n_trunc is not None:
+                          t_cols = t_cols[:n_trunc]
                 sum_df = pd.DataFrame(columns=(factor_cols + [f'cook_{i}' for i in t_cols]
                                                + [f'cook_pval_{i}' for i in t_cols]),
                                       index=list(self.cook_distances.values())[0].index, 
@@ -1954,8 +1958,9 @@ class KernelAOVResults():
                     error_message += "the by-level pairwise case)."
                     raise ValueError(error_message)
                 else:
-                    t_cols = (list(self.cook_distances.values())[0].columns[:-1] if t is None 
-                              else np.ravel([t, ]))
+                    t_cols = list(self.cook_distances.values())[0].columns[:-1]
+                    if n_trunc is not None:
+                              t_cols = t_cols[:n_trunc]
                     cook = self.cook_distances[hypothesis]
                     cook_pval = self.cook_pvalues[hypothesis]
                     where_hyp = cook[hypothesis] != 'NA'
@@ -1980,8 +1985,9 @@ class KernelAOVResults():
             if hypothesis is None:
                 error_message = "Set the hypothesis parameter."
                 raise ValueError(error_message)
-            t_cols = (self.stats[hypothesis].index if t is None 
-                      else np.ravel([t, ]))
+            t_cols = self.stats[hypothesis].index
+            if n_trunc is not None:
+                      t_cols = t_cols[:n_trunc]
             cook = self.cook_distances[hypothesis]
             cook_pval = self.cook_pvalues[hypothesis]
             sum_df = pd.DataFrame(columns=([f'cook_{i}' for i in t_cols]
