@@ -1968,8 +1968,8 @@ class KernelAOVResults():
                     for i, fct in enumerate(factor_cols):
                         sum_df.loc[where_left, fct] = levels[i]
                         sum_df.loc[where_right, fct] = levels[nb_factors + i]
-            sum_df.dropna(axis=1, inplace=True)
-            sum_df.dropna(axis=0, inplace=True)
+            sum_df.dropna(axis=1, how='all', inplace=True)
+            sum_df.dropna(axis=0, how='all', inplace=True)
         ### Other cases (custom contrasts, other coding schemes...):
         else:
             if hypothesis is None:
@@ -1986,5 +1986,5 @@ class KernelAOVResults():
             for i in t_cols:
                 sum_df[f'cook_{i}'] = cook[i]
                 sum_df[f'cook_pval_{i}'] = cook_pval[i]
-        sum_df.dropna(axis=1, inplace=True)
+        sum_df.dropna(axis=1, how='all', inplace=True)
         return sum_df
