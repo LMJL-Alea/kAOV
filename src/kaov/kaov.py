@@ -1402,9 +1402,12 @@ class KernelAOVResults():
                 summ = summ[factor]
             else:
                 # Pop emty factors from the dictionary:
+                empty_fct = []
                 for key, val in summ.items():
                     if val.empty:
-                        summ.pop(key)
+                        empty_fct.append(key)
+                for key in empty_fct:
+                    summ.pop(key)
         return summ
     
     def _summary_obj(self):
