@@ -1422,7 +1422,7 @@ class KernelAOVResults():
         """
         t = 1
         float_format = '%.3f'
-        summ = self.summary(t=t)
+        summ = self.summary(trunc=t)
         if type(summ) != dict:
             summ = {'Factor test' : summ}
         summ_print = summary2.Summary()
