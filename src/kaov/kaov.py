@@ -1815,8 +1815,8 @@ class KernelAOVResults():
                 for i, fct in enumerate(factor_cols):
                     sum_df[fct] = factors_split.str.get(i).str.split('[').str.get(1).str.split(']').str.get(0)
             elif self.hypothesis_type == 'one-vs-all':
-                t_cols = (list(self.projections.values())[0].columns[:-1] if t is None 
-                          else np.ravel([t, ]))
+                # Only one direction in the by-level case:
+                t_cols = ([1, ] if t is None else np.ravel([t, ]))
                 sum_df = pd.DataFrame(columns=factor_cols + [f'proj_{i}' for i in t_cols],
                                       index=list(self.projections.values())[0].index, 
                                       dtype=str)
@@ -1837,8 +1837,7 @@ class KernelAOVResults():
                     error_message += "the by-level pairwise case)."
                     raise ValueError(error_message)
                 else:
-                    t_cols = (self.projections[hypothesis].columns[:-1] if t is None 
-                              else np.ravel([t, ]))
+                    t_cols = ([1, ] if t is None else np.ravel([t, ]))
                     proj = self.projections[hypothesis]
                     where_hyp = proj[hypothesis] != 'NA'
                     sum_df = pd.DataFrame(columns=factor_cols + [f'proj_{i}' for i in t_cols],
@@ -1860,8 +1859,11 @@ class KernelAOVResults():
             if hypothesis is None:
                 error_message = "Set the hypothesis parameter."
                 raise ValueError(error_message)
-            t_cols = (self.stats[hypothesis].index if t is None 
-                      else np.ravel([t, ]))
+            if self.by_level:
+                t_cols = ([1, ] if t is None else np.ravel([t, ]))
+            else:
+                t_cols = (self.projections[hypothesis].columns if t is None 
+                          else np.ravel([t, ]))
             proj = self.projections[hypothesis]
             sum_df = pd.DataFrame(columns=[f'proj_{i}' for i in t_cols],
                                   index=proj.index, 
