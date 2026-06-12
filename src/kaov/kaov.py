@@ -1222,10 +1222,10 @@ class AOV:
                 (cook_distances[name],
                  cook_pvalues[name]) = self.compute_cook_distances(L, n_trunc=n_trunc,
                                                                    normalize=norm_cook)
-                if not hasattr(self, 'formula'):
+                if not hasattr(self, 'formula') or hypotheses not in [None, 'pairwise', 'one-vs-all']:
                     projections[name][name] = np.nan
                     cook_distances[name][name] = np.nan
-                elif name == 'Intercept' or hypotheses not in [None, 'pairwise', 'one-vs-all']:
+                elif name == 'Intercept':
                     pass
                 else:
                     # Adding factor information:
@@ -1501,7 +1501,9 @@ class KernelAOVResults():
         fig, axs = plt.subplots(ncols=nb_tests, figsize=figsize)
         for j, test in enumerate(tests):
             ax = axs if nb_tests == 1 else axs[j]
-            T_max = len(self.projections[test].columns) - 1
+            T_max = len(self.projections[test].columns)
+            if test in self.projections[test]:
+                T_max =- 1
             t = min(comp, T_max)
             proj_j = self.projections[test]
             test_lvls = proj_j[test].unique()
