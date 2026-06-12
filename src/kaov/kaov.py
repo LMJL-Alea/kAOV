@@ -794,12 +794,14 @@ class AOV:
             contrast_L is a contrast matrix in the form of a torch.tensor.
 
         """
+        if hypotheses is None and hasattr(self, 'formula') and 'OneHot' in self.formula:
+            hypotheses = 'pairwise'
         if isinstance(hypotheses, str):
             if not hasattr(self, 'formula') or 'OneHot' not in self.formula:
                 warnings.warn("'pairwise' and 'one-vs-all' options for `hypotheses` "
                               "are intended for OneHot encoding. Otherwise, "
                               "the test might be difficult to interpret.")
-            hypotheses_type = hypotheses
+            hypotheses_type = hypotheses 
             hypotheses = []
             if not hasattr(self, '_factor_info'):
                 warnings.warn("The absence of `_factor_info` attribute was "
@@ -1177,8 +1179,6 @@ class AOV:
         K_T = self._compute_K_T(n_trunc=n_trunc, n_anchors=n_anchors)
         if verbose > 0:
             print('-Testing hypotheses:')
-        if hypotheses is None and 'OneHot' in self.formula:
-            hypotheses = 'pairwise'
         hyps = self.set_hypotheses(hypotheses=hypotheses, by_level=by_level,
                                    test_intercept=test_intercept,
                                    true_proportions=true_proportions)
