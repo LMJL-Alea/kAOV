@@ -872,7 +872,18 @@ class AOV:
 
         """
         LXXL = multi_dot([L, self.data._XXinv, L.T])
-        LXXLinv = tensor([[LXXL**-1]]) if len(LXXL.shape) == 0 else LXXL.inverse()
+        if len(LXXL.shape) == 0:
+            LXXLinv = tensor([[LXXL**-1]])
+        else:
+            cutoff = np.linalg.matrix_rank(LXXL)
+            if cutoff < len(LXXL):
+                # Generalized inverse:
+                sp, ev = ordered_eigsy(LXXL)
+                sp = sp[: cutoff]
+                ev = ev[:, : cutoff]
+                LXXLinv = multi_dot([ev, diag(sp ** -1), ev.T])
+            else:
+                LXXLinv = LXXL.inverse()
         return LXXLinv
 
     def _compute_D(self, L):
