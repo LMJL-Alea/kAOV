@@ -1503,7 +1503,7 @@ class KernelAOVResults():
             ax = axs if nb_tests == 1 else axs[j]
             T_max = len(self.projections[test].columns)
             if test in self.projections[test]:
-                T_max =- 1
+                T_max -= 1
             t = min(comp, T_max)
             proj_j = self.projections[test]
             test_lvls = proj_j[test].unique()
