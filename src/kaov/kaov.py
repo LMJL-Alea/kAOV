@@ -715,7 +715,7 @@ class AOV:
             diagn = self.diagnostics['Embeddings']
             figtitle = 'Response plot'
             y = x.copy()
-        figtitle += f' (t={t})'
+        figtitle += f' (trunc. {t})'
         rc('font', **{'family': font_family})
         figsize = figsize if figsize is not None else (8 * nb_factors, 6)
         fig, axs = plt.subplots(figsize=figsize, ncols=nb_factors)
