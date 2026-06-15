@@ -1179,6 +1179,8 @@ class AOV:
         K_T = self._compute_K_T(n_trunc=n_trunc, n_anchors=n_anchors)
         if verbose > 0:
             print('-Testing hypotheses:')
+        if hypotheses is None and hasattr(self, 'formula') and 'OneHot' in self.formula:
+            hypotheses = 'pairwise'
         hyps = self.set_hypotheses(hypotheses=hypotheses, by_level=by_level,
                                    test_intercept=test_intercept,
                                    true_proportions=true_proportions)
