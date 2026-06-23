@@ -25,31 +25,22 @@ dependencies = [
   "pandas",
   "scipy",
   "patsy",
-  "torch >= 2.2.0",
+  # Default torch dependency for Linux and macOS ARM
+  "torch>=2.2; sys_platform != 'darwin' or platform_machine != 'x86_64'",
+  # macOS x86: torch < 2.3 (hence Python < 3.13)
+  "torch>=2.2,<2.3; sys_platform == 'darwin' and platform_machine == 'x86_64'",
   "statsmodels >= 0.14.0",
   "tqdm",
 ]
 
-[tool.uv.sources]
-torch = [
-  { index = "pytorch-macos", marker = "sys_platform == 'darwin' and platform_machine == 'x86_64'"},
-  { index = "pypi", marker = "sys_platform != 'darwin'"},
+[tool.uv]
+environments = [
+    # Linux
+    "sys_platform == 'linux'",
+    # MacOS arm
+    "sys_platform == 'darwin' and platform_machine != 'x86_64'",
+    # MacOS x86
+    "sys_platform == 'darwin' and platform_machine == 'x86_64'",
+    # Windows (not tested)
+    "sys_platform == 'win32'"
 ]
-
-[[tool.uv.index]]
-name = "pytorch-macos"
-url = "https://download.pytorch.org/whl/cpu"
-explicit = true
-index-strategy = "unsafe-best-match"
-extra-index-url = ["https://download.pytorch.org/whl/cpu"]
-
-[[tool.uv.index]]
-name = "pypi"
-url = "https://pypi.python.org/simple"
-explicit = true
-
-[dependency-groups]
-dev = [
-    "spyder>=6.1.3",
-]
-
