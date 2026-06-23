@@ -1369,14 +1369,14 @@ class KernelAOVResults():
         """
         if not self.by_level or self.hypothesis_type == 'custom':
             if factor is not None:
-                summ = pd.Series(index=['factor', 'stat', 'pval'], dtype=str)
+                summ = pd.Series(index=['factor', 'stat', 'pval'], dtype=object)
                 summ['factor'] = factor
                 summ['stat'] = self.stats[factor].loc[trunc, 'stat']
                 summ['pval'] = self.stats[factor].loc[trunc, 'pval']
             else:
                 summ = pd.DataFrame(columns=['factor', 'stat', 'pval'],
                                       index=np.arange(1, len(self.stats) + 1), 
-                                      dtype=str)
+                                      dtype=object)
                 for i, (hyp, stat) in enumerate(self.stats.items()):
                     summ.loc[i + 1, 'factor'] = hyp
                     summ.loc[i + 1, 'stat'] = self.stats[hyp].loc[trunc, 'stat']
@@ -1396,7 +1396,7 @@ class KernelAOVResults():
                     factor_cols.extend([f'factor_{f + 1}_2' for f in range(nb_factors)])
                 sum_df = pd.DataFrame(columns=factor_cols + ['stat', 'pval'],
                                       index=np.arange(1, len(self.stats) + 1), 
-                                      dtype=str)
+                                      dtype=object)
                 for i, (hyp, stat) in enumerate(self.stats.items()):
                     is_factor_hyp = ((nb_factors == 1 and fct in hyp and ':' not in hyp)
                                      or (nb_factors > 1 and np.all([f in hyp for f in fct.split(':')])))
@@ -1827,7 +1827,7 @@ class KernelAOVResults():
                           t_cols = t_cols[:n_comp]
                 proj = self.projections[factor]
                 sum_df = pd.DataFrame(columns=factor_cols + [f'proj_{i}' for i in t_cols],
-                                      index=proj.index, dtype=str)
+                                      index=proj.index, dtype=object)
                 for i in t_cols:
                     sum_df[f'proj_{i}'] = proj[i]
                 factors_split = proj[factor].str.split(':')
@@ -1838,7 +1838,7 @@ class KernelAOVResults():
                 t_cols = [1, ]
                 sum_df = pd.DataFrame(columns=factor_cols + [f'proj_{i}' for i in t_cols],
                                       index=list(self.projections.values())[0].index, 
-                                      dtype=str)
+                                      dtype=object)
                 for i, (hyp, _) in enumerate(self.hypotheses):
                     is_factor_hyp = ((nb_factors == 1 and factor in hyp and ':' not in hyp)
                                      or (nb_factors > 1 and np.all([f in hyp for f in factor.split(':')])))
@@ -1861,7 +1861,7 @@ class KernelAOVResults():
                     where_hyp = proj[hypothesis] != 'NA'
                     sum_df = pd.DataFrame(columns=factor_cols + [f'proj_{i}' for i in t_cols],
                                           index=proj.index, 
-                                          dtype=str)
+                                          dtype=object)
                     for i in t_cols:
                         sum_df.loc[where_hyp, f'proj_{i}'] = proj.loc[where_hyp, i]
                     pw_groups = hypothesis.split(' = ')
@@ -1887,7 +1887,7 @@ class KernelAOVResults():
             proj = self.projections[hypothesis]
             sum_df = pd.DataFrame(columns=[f'proj_{i}' for i in t_cols],
                                   index=proj.index, 
-                                  dtype=str)
+                                  dtype=object)
             for i in t_cols:
                 sum_df.loc[:, f'proj_{i}'] = proj.loc[:, i]
         sum_df.dropna(axis=1, how='all', inplace=True)
@@ -1939,7 +1939,7 @@ class KernelAOVResults():
                 cook_pval = self.cook_pvalues[factor]
                 sum_df = pd.DataFrame(columns=(factor_cols+ [f'cook_{i}' for i in t_cols]
                                                + [f'cook_pval_{i}' for i in t_cols]),
-                                      index=cook.index, dtype=str)
+                                      index=cook.index, dtype=object)
                 for i in t_cols:
                     sum_df[f'cook_{i}'] = cook[i]
                     sum_df[f'cook_pval_{i}'] = cook_pval[i]
@@ -1953,7 +1953,7 @@ class KernelAOVResults():
                 sum_df = pd.DataFrame(columns=(factor_cols + [f'cook_{i}' for i in t_cols]
                                                + [f'cook_pval_{i}' for i in t_cols]),
                                       index=list(self.cook_distances.values())[0].index, 
-                                      dtype=str)
+                                      dtype=object)
                 for i, (hyp, _) in enumerate(self.hypotheses):
                     is_factor_hyp = ((nb_factors == 1 and factor in hyp and ':' not in hyp)
                                      or (nb_factors > 1 and np.all([f in hyp for f in factor.split(':')])))
@@ -1982,7 +1982,7 @@ class KernelAOVResults():
                     sum_df = pd.DataFrame(columns=(factor_cols + [f'cook_{i}' for i in t_cols]
                                                    + [f'cook_pval_{i}' for i in t_cols]),
                                           index=cook.index, 
-                                          dtype=str)
+                                          dtype=object)
                     for i in t_cols:
                         sum_df.loc[where_hyp, f'cook_{i}'] = cook.loc[where_hyp, i]
                         sum_df.loc[where_hyp, f'cook_pval_{i}'] = cook_pval.loc[where_hyp, i]
@@ -2008,7 +2008,7 @@ class KernelAOVResults():
             sum_df = pd.DataFrame(columns=([f'cook_{i}' for i in t_cols]
                                            + [f'cook_pval_{i}' for i in t_cols]),
                                   index=cook.index, 
-                                  dtype=str)
+                                  dtype=object)
             for i in t_cols:
                 sum_df[f'cook_{i}'] = cook[i]
                 sum_df[f'cook_pval_{i}'] = cook_pval[i]
