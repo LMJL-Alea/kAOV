@@ -574,6 +574,21 @@ class AOV:
         Returns
         -------
         aov_obj : instance of AOV
+        
+        Examples
+        --------
+        Importing data:
+        >>> import pandas as pd
+        >>> from kaov import AOV
+        >>> url = "https://raw.githubusercontent.com/LMJL-Alea/kAOV/refs/heads/main/Data/reversion_kAOV.csv"
+        >>> data = pd.read_csv(url, index_col=0)
+
+        Regress the expression of three genes against the medium factor using formula:
+        >>> kfit = AOV.from_formula('AACS + ACSL6 + ACSS1 ~ C(Medium, OneHot)', data=data)
+        >>> print(kfit.data.exog_names)
+        Index(['Medium[0H]', 'Medium[24H]', 'Medium[48HDIFF]', 'Medium[48HREV]'], dtype='object')
+        >>> print(kfit.data.endog_names)
+        Index(['AACS', 'ACSL6', 'ACSS1'], dtype='object')
 
         """
         if 'OneHot' in formula:
