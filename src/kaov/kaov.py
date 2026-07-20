@@ -1180,6 +1180,29 @@ class AOV:
         -------
         KernelAOVResults object
            See the documentation for KernelAOVResults.
+           
+        Examples
+        --------
+        Importing data and create an intsance of AOV:
+            
+        >>> import pandas as pd
+        >>> from kaov import AOV
+        >>> url = "https://raw.githubusercontent.com/LMJL-Alea/kAOV/refs/heads/main/Data/reversion_kAOV.csv"
+        >>> data = pd.read_csv(url, index_col=0)  
+        >>> kfit = AOV.from_formula('AACS + ACSL6 + ACSS1 ~ C(Medium, OneHot)', data=data)
+        
+        Test for factor effects:
+        
+        >>> res = kfit.test()
+        >>> print(res)
+        Kernel Analysis of Variance (trunc. 1):
+        ====================================
+                                            
+        ------------------------------------
+         Factor test | factor   stat   pval 
+        ------------------------------------
+                     | Medium 34.0842 0.0000
+        ====================================
 
         """
         if verbose > 0:
