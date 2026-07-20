@@ -1197,7 +1197,6 @@ class AOV:
         >>> print(res)
         Kernel Analysis of Variance (trunc. 1):
         ====================================
-                                            
         ------------------------------------
          Factor test | factor   stat   pval 
         ------------------------------------
