@@ -322,7 +322,7 @@ class Data:
         by `np.random`. To ensure the results are reproducible, pass an int
         to instanciate the seed, or a Generator/RandomState instance (recommended).
 
-    Attributes:
+    Attributes
     ----------
     endog : 2-d torch.tensor
         A tensor with dimensions nobs x nvar containing nobs values of
@@ -482,7 +482,7 @@ class AOV:
         by `np.random`. To ensure the results are reproducible, pass an int
         to instanciate the seed, or a Generator/RandomState instance (recommended).
 
-    Attributes:
+    Attributes
     ----------
     data : instance of class Data
         Contains various information on the original dataset, see the
@@ -1353,7 +1353,7 @@ class KernelAOVResults():
     factor_info : dict
         _factor_info attribute of the AOV class.
 
-    Attributes:
+    Attributes
     ----------
     hypotheses : list
         See Parameters.
