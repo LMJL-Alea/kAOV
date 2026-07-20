@@ -9,7 +9,8 @@ version = "1.9.8"
 description = "Kernel Analysis of Variance"
 readme = "README.md"
 requires-python = ">=3.8"
-license = {file = "LICENSE.txt"}
+license = "MIT"
+license-files = ["LICENSE.md"]
 keywords = ["kernel methods", "analysis of variance"]
 authors = [
   {name = "Polina Arsenteva", email = "polina.arsenteva@ens-lyon.fr" },
@@ -35,6 +36,20 @@ dependencies = [
   "statsmodels >= 0.14.0",
   "tqdm",
 ]
+
+[project.optional-dependencies]
+docs = [
+  "sphinx>=7.0",
+  "pydata-sphinx-theme",
+  "numpydoc",
+  "myst-parser",
+  "nbsphinx",
+]
+
+[project.urls]
+Homepage = "https://github.com/LMJL-Alea/kAOV"
+Documentation = "https://LMJL-Alea.github.io/kAOV/"
+Repository = "https://github.com/LMJL-Alea/kAOV"
 
 [tool.uv.sources]
 torch = [
