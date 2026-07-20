@@ -37,6 +37,20 @@ dependencies = [
   "tqdm",
 ]
 
+[project.optional-dependencies]
+docs = [
+  "sphinx>=7.0",
+  "pydata-sphinx-theme",
+  "numpydoc",
+  "myst-parser",
+  "nbsphinx",
+]
+
+[project.urls]
+Homepage = "https://github.com/LMJL-Alea/kAOV"
+Documentation = "https://LMJL-Alea.github.io/kAOV/"
+Repository = "https://github.com/LMJL-Alea/kAOV"
+
 [tool.uv.sources]
 torch = [
   { index = "pytorch-macos", marker = "sys_platform == 'darwin' and platform_machine == 'x86_64'"},
