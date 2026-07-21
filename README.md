@@ -6,6 +6,11 @@ Install from GitHub:
 ```console
 $ pip install kaov@git+https://github.com/LMJL-Alea/kAOV@main
 ```
+
+## Documentation
+
+The documentation is available at: https://lmjl-alea.github.io/kAOV (with tutorials in [Examples](https://lmjl-alea.github.io/kAOV/examples/index.html)).
+
 ## How to use
 Load a dataset:
 ```python
@@ -42,9 +47,9 @@ Create a model and run a test:
 ===============================================================
 ```
 
-For more details see the [tutorial](https://github.com/LMJL-Alea/kAOV/blob/main/tutorial_kaov.ipynb).
+For more details see the [tutorials](https://lmjl-alea.github.io/kAOV/examples/index.html).
 
 ## References
 
 <a id="1">[1]</a> 
-Anthony Ozier-Lafontaine, Polina Arsenteva, Franck Picard, Bertrand Michel. Extending Kernel Testing To General Designs.  2024. Preprint, [	arXiv:2405.13799](https://arxiv.org/abs/2405.13799)
+Anthony Ozier-Lafontaine, Polina Arsenteva, Franck Picard, Bertrand Michel. Extending Kernel Testing To General Designs. 2024. Preprint, [	arXiv:2405.13799](https://arxiv.org/abs/2405.13799)
