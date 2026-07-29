@@ -531,6 +531,7 @@ class AOV:
         ### Nystrom:
         self.data_nystrom = None
         if nystrom:
+            self.data_nystrom = Data(endog, exog, meta=meta, endog_names=endog_names,
                                      exog_names=exog_names, nystrom=True,
                                      n_landmarks=n_landmarks, random_gen=random_gen)
 
