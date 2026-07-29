@@ -1575,8 +1575,8 @@ class KernelAOVResults():
                 T_max -= 1
             t = min(comp, T_max)
             if t != comp:
-                warnings.warn(f'comp={t} will be plotted, since {comp} is ' +
-                              'larger than the maximal number of components.')
+                warnings.warn(f'In {test}: comp={t} will be plotted, since {comp} ' +
+                              'is larger than the maximal number of components.')
             proj_j = self.projections[test]
             test_lvls = proj_j[test].unique()
             test_lvls = test_lvls[test_lvls != 'NA']  # extract relevant observations
@@ -1821,12 +1821,12 @@ class KernelAOVResults():
             ax = axs if nb_tests == 1 else axs[j]
             t1 = min(trunc, len(self.stats[test].index))
             if t1 != trunc:
-                warnings.warn(f'trunc={t1} will be plotted, since {trunc} is ' + 
-                              'larger than the maximal number of truncations.')
+                warnings.warn(f'In {test}: trunc={t1} will be plotted, since {trunc} ' + 
+                              'is larger than the maximal number of truncations.')
             t2 = min(comp, len(self.projections[test].columns) - 1)
             if t2 != comp:
-                warnings.warn(f'comp={t2} will be plotted, since {comp} is ' +
-                              'larger than the maximal number of components.')
+                warnings.warn(f'In {test}: comp={t2} will be plotted, since {comp} ' +
+                              'is larger than the maximal number of components.')
             cook_j = self.cook_distances[test]
             proj_j = self.projections[test]
             test_lvls = cook_j[test].unique()
