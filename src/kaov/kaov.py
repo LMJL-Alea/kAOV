@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 Created on Thu Jun  6 13:28:15 2024
@@ -520,7 +519,7 @@ class AOV:
     def __init__(self, endog, exog, meta=None, endog_names=None, exog_names=None,
                  nystrom=False, n_landmarks=None, random_gen=None,
                  kernel_function='gauss', kernel_bandwidth='median',
-                 kernel_median_coef=1, verbose=0):
+                 kernel_median_coef=1, verbose=1):
         if verbose < 1:
             warnings.simplefilter("ignore")
         elif verbose == 1:
@@ -532,7 +531,6 @@ class AOV:
         ### Nystrom:
         self.data_nystrom = None
         if nystrom:
-            self.data_nystrom = Data(endog, exog, meta=meta, endog_names=endog_names,
                                      exog_names=exog_names, nystrom=True,
                                      n_landmarks=n_landmarks, random_gen=random_gen)
 
@@ -558,7 +556,7 @@ class AOV:
 
     @classmethod
     def from_formula(cls, formula, data, kernel_function='gauss', nystrom=False, 
-                     n_landmarks=None, random_gen=None, verbose=0,
+                     n_landmarks=None, random_gen=None, verbose=1,
                      kernel_bandwidth='median', kernel_median_coef=1):
         """
         Creates a kernel linear model from a formula and a dataframe.
@@ -1131,7 +1129,7 @@ class AOV:
 
     def test(self, hypotheses=None, hypotheses_subset=None,
              by_level=False, n_trunc=100, correction=None, test_intercept=False,
-             true_proportions=False, center_projections=True, verbose=0,
+             true_proportions=False, center_projections=True, verbose=1,
              n_anchors=None, f_norm=True, skip_projections_and_cook=False,
              norm_cook=True):
         """
@@ -1561,6 +1559,7 @@ class KernelAOVResults():
             An Axes object of the plot.
 
         """
+        warnings.simplefilter("always")
         tests = self.projections.keys() if tests is None else tests
         nb_tests = len(tests)
 
@@ -1683,6 +1682,7 @@ class KernelAOVResults():
             An Axes object of the plot.
 
         """
+        warnings.simplefilter("always")
         tests = self.projections.keys() if tests is None else tests
         nb_tests = len(tests)
 
@@ -1810,6 +1810,7 @@ class KernelAOVResults():
             An Axes object of the plot.
 
         """
+        warnings.simplefilter("always")
         tests = self.cook_distances.keys() if tests is None else tests
         nb_tests = len(tests)
 
