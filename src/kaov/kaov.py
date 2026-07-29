@@ -1575,9 +1575,8 @@ class KernelAOVResults():
                 T_max -= 1
             t = min(comp, T_max)
             if t != comp:
-                s = f'comp={t} will be plotted, since {comp} is larger than '
-                s += ' the maximal number of components.'
-                warnings.warn(s)
+                warnings.warn(f'comp={t} will be plotted, since {comp} is ' +
+                              'larger than the maximal number of components.')
             proj_j = self.projections[test]
             test_lvls = proj_j[test].unique()
             test_lvls = test_lvls[test_lvls != 'NA']  # extract relevant observations
@@ -1701,9 +1700,8 @@ class KernelAOVResults():
             t1_j = comp1
             t2_j = t1_j if comp2 not in proj_j.columns else comp2 # sometimes only one axis available
             if t2_j != comp2:
-                s = f'In {test}: comp2={t2_j} will be plotted, since {comp2} is '
-                s += 'larger than the maximal number of components.'
-                warnings.warn(s)
+                warnings.warn(f'In {test}: comp2={t2_j} will be plotted, since ' +
+                              f'{comp2} is larger than the maximal number of components.')
             test_lvls = proj_j[test].unique()
             test_lvls = test_lvls[test_lvls != 'NA']  # extract relevant observations
             nb_lvls = len(test_lvls)
@@ -1823,14 +1821,12 @@ class KernelAOVResults():
             ax = axs if nb_tests == 1 else axs[j]
             t1 = min(trunc, len(self.stats[test].index))
             if t1 != trunc:
-                s = f'trunc={t1} will be plotted, since {trunc} is larger than '
-                s += ' the maximal number of truncations.'
-                warnings.warn(s)
+                warnings.warn(f'trunc={t1} will be plotted, since {trunc} is ' + 
+                              'larger than the maximal number of truncations.')
             t2 = min(comp, len(self.projections[test].columns) - 1)
             if t2 != comp:
-                s = f'comp={t2} will be plotted, since {comp} is larger than '
-                s += ' the maximal number of components.'
-                warnings.warn(s)
+                warnings.warn(f'comp={t2} will be plotted, since {comp} is ' +
+                              'larger than the maximal number of components.')
             cook_j = self.cook_distances[test]
             proj_j = self.projections[test]
             test_lvls = cook_j[test].unique()
