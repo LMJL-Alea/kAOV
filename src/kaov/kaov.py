@@ -19,7 +19,8 @@ from matplotlib import rc, colormaps
 from torch import cdist, exp, matmul, diag, trace, sqrt, pow, cat
 from torch import eye, ones, tensor, float64, from_numpy, Tensor, finfo
 from torch.linalg import multi_dot, eigh, inv
-
+import sys
+sys.setrecursionlimit(10 ** 6)
 
 def ordered_eigsy(matrix, eps=None, clip=True):
     """
@@ -502,6 +503,12 @@ class AOV:
         Kernel function used for calculations.
     computed_bandwidth : float
         The value of the kernel bandwidth.
+    verbose : int, optional
+        The higher the verbosity, the more messages keeping track of
+        computations. The default is 0.
+        - < 1: no messages,
+        - 1: warnings are printed once,
+        - 2: warnings are printed every time they appear.
 
     Notes
     -----
@@ -513,7 +520,13 @@ class AOV:
     def __init__(self, endog, exog, meta=None, endog_names=None, exog_names=None,
                  nystrom=False, n_landmarks=None, random_gen=None,
                  kernel_function='gauss', kernel_bandwidth='median',
-                 kernel_median_coef=1):
+                 kernel_median_coef=1, verbose=0):
+        if verbose < 1:
+            warnings.simplefilter("ignore")
+        elif verbose == 1:
+            warnings.simplefilter("once")
+        else:
+            warnings.simplefilter("always")
         self.data = Data(endog, exog, meta=meta, endog_names=endog_names,
                          exog_names=exog_names)
         ### Nystrom:
@@ -544,8 +557,8 @@ class AOV:
         self.diagnostics = None
 
     @classmethod
-    def from_formula(cls, formula, data, kernel_function='gauss',
-                     nystrom=False, n_landmarks=None, random_gen=None,
+    def from_formula(cls, formula, data, kernel_function='gauss', nystrom=False, 
+                     n_landmarks=None, random_gen=None, verbose=0,
                      kernel_bandwidth='median', kernel_median_coef=1):
         """
         Creates a kernel linear model from a formula and a dataframe.
@@ -570,6 +583,12 @@ class AOV:
         kernel_median_coef : float, optional
             Multiple of the median to compute bandwidth if `kernel_bandwidth='median'`.
             The default is 1.
+        verbose : int, optional
+            The higher the verbosity, the more messages keeping track of
+            computations. The default is 0.
+            - < 1: no messages,
+            - 1: warnings are printed once,
+            - 2: warnings are printed every time they appear.
 
         Returns
         -------
@@ -610,7 +629,7 @@ class AOV:
                       n_landmarks=n_landmarks, random_gen=random_gen,
                       kernel_function=kernel_function,
                       kernel_bandwidth=kernel_bandwidth,
-                      kernel_median_coef=kernel_median_coef)
+                      kernel_median_coef=kernel_median_coef, verbose=verbose)
         aov_obj.formula = formula
         aov_obj._factor_info = exog.design_info.term_name_slices
         # Simplify the names for OneHot:
@@ -618,6 +637,15 @@ class AOV:
             aov_obj._factor_info = {_name.replace(s1, '').replace(s2, ''): _slice
                                     for _name, _slice in aov_obj._factor_info.items()}
         return aov_obj
+    
+    def __str__(self):
+        s = "Kernel linear model"
+        s + f" with {self.data.nobs} observations and {self.data.nvar} features."
+        if self.data_nystrom is not None:
+            n_n, g = self.data.endog.shape
+            s += "\nNystrom approximation with"
+            s += f" {self.data_nystrom.nobs} landmarks."
+        return s
         
     def compute_diagnostics(self, n_trunc=100, n_anchors=None):
         """
@@ -1493,7 +1521,7 @@ class KernelAOVResults():
     def __str__(self):
         return self._summary_obj().__str__()
 
-    def plot_density(self, comp=100, tests=None, colormap='viridis', alpha=.5,
+    def plot_density(self, comp=1, tests=None, colormap='viridis', alpha=.5,
                      legend_fontsize=12, font_family='serif', figsize=None):
         """
         Plots kernel-densities of projections of the embeddings on the chosen
@@ -1546,6 +1574,10 @@ class KernelAOVResults():
             if test in self.projections[test]:
                 T_max -= 1
             t = min(comp, T_max)
+            if t != comp:
+                s = f'comp={t} will be plotted, since {comp} is larger than '
+                s += ' the maximal number of components.'
+                warnings.warn(s)
             proj_j = self.projections[test]
             test_lvls = proj_j[test].unique()
             test_lvls = test_lvls[test_lvls != 'NA']  # extract relevant observations
@@ -1667,6 +1699,10 @@ class KernelAOVResults():
             proj_j = self.projections[test]
             t1_j = comp1
             t2_j = t1_j if comp2 not in proj_j.columns else comp2 # sometimes only one axis available
+            if t2_j != comp2:
+                s = f'In {test}: comp2={t2_j} will be plotted, since {comp2} is '
+                s += 'larger than the maximal number of components.'
+                warnings.warn(s)
             test_lvls = proj_j[test].unique()
             test_lvls = test_lvls[test_lvls != 'NA']  # extract relevant observations
             nb_lvls = len(test_lvls)
@@ -1715,7 +1751,7 @@ class KernelAOVResults():
         plt.draw()
         return fig, axs
 
-    def plot_influence(self, trunc=100, comp=100, tests=None,
+    def plot_influence(self, trunc=1, comp=1, tests=None,
                        marker='o', colors=None, colormap='viridis',
                        font_family='serif', legend=True, alpha=.5, 
                        legend_fontsize=12, figsize=None):
@@ -1784,7 +1820,15 @@ class KernelAOVResults():
         for j, test in enumerate(tests):
             ax = axs if nb_tests == 1 else axs[j]
             t1 = min(trunc, len(self.stats[test].index))
+            if t1 != trunc:
+                s = f'trunc={t1} will be plotted, since {trunc} is larger than '
+                s += ' the maximal number of truncations.'
+                warnings.warn(s)
             t2 = min(comp, len(self.projections[test].columns) - 1)
+            if t2 != comp:
+                s = f'comp={t2} will be plotted, since {comp} is larger than '
+                s += ' the maximal number of components.'
+                warnings.warn(s)
             cook_j = self.cook_distances[test]
             proj_j = self.projections[test]
             test_lvls = cook_j[test].unique()
