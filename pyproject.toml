@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "kAOV" 
-version = "1.9.18"
+version = "1.10.0"
 description = "Kernel Analysis of Variance"
 readme = "README.md"
 requires-python = ">=3.8"
@@ -73,9 +73,3 @@ explicit = true
 dev = [
     "spyder>=6.1.3",
 ]
-
-[tools.setuptools.packages.find]
-where=['src']
-
-[tools.setuptools.package-data]
-kaov=['datasets/data/*.csv', 'datasets/data/*.h5ad']
