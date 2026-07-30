@@ -20,7 +20,7 @@ def load_reversion():
         cells in rows and genes in columns, along with the metadata as last columns.
 
     """
-    data_path = resources.files("kaov.datasets.data") / "reversion.csv"
+    data_path = resources.files("kaov.datasets") / "reversion.csv"
     data = pd.read_csv(data_path, index_col=0)
     return data
 
@@ -35,7 +35,7 @@ def load_rabbits_anndata():
         raw and pre-processed counts, metadata, UMAP, etc.
 
     """
-    data_path = resources.files("kaov.datasets.data") / "rabbits_ct.h5ad"
+    data_path = resources.files("kaov.datasets") / "rabbits_ct.h5ad"
     data = pd.read_csv(data_path, index_col=0)
     return data
 
