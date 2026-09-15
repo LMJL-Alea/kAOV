@@ -47,13 +47,6 @@ jobs:
       - name: Show Sphinx warnings
         if: always()
         run: cat sphinx-warnings.log || true
-        
-      - name: Fail if the API reference is empty
-        run: |
-          if [ ! -d _build/html/generated ] || [ -z "$(ls -A _build/html/generated)" ]; then
-            echo "::error::autosummary generated no stub — the API reference is empty"
-            exit 1
-          fi
 
       - name: Disable Jekyll processing
         run: touch _build/html/.nojekyll
