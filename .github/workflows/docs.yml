@@ -18,9 +18,9 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 
@@ -32,9 +32,28 @@ jobs:
 
       - name: Debug - list installed packages
         run: pip list
+        
+      - name: Check that kaov is importable
+        run: |
+          python - <<'PY'
+          import kaov
+          print("kaov imported from:", kaov.__file__)
+          print("public names:", sorted(n for n in dir(kaov) if not n.startswith("_")))
+          PY
 
       - name: Build Sphinx documentation
-        run: python -m sphinx -b html docs _build/html
+        run: python -m sphinx -b html -T -w sphinx-warnings.log docs _build/html
+      
+      - name: Show Sphinx warnings
+        if: always()
+        run: cat sphinx-warnings.log || true
+        
+      - name: Fail if the API reference is empty
+        run: |
+          if [ ! -d _build/html/generated ] || [ -z "$(ls -A _build/html/generated)" ]; then
+            echo "::error::autosummary generated no stub — the API reference is empty"
+            exit 1
+          fi
 
       - name: Disable Jekyll processing
         run: touch _build/html/.nojekyll
