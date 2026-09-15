@@ -39,12 +39,11 @@ dependencies = [
 
 [project.optional-dependencies]
 docs = [
-  "sphinx>=7.0",
+  "sphinx>=8.0,<10",
   "pydata-sphinx-theme",
   "numpydoc",
   "myst-parser",
-  "nbsphinx",
-  "scanpy"
+  "nbsphinx"
 ]
 
 [project.urls]

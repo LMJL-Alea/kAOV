@@ -264,13 +264,15 @@ def _calculate_XXinv_and_ProjImX(X):
 class OneHot(object):
     """
     Class defining One Hot encoding: a coding scheme for linear models, along
-    with other well known ones such as Treatment or Difference coding.It is to
+    with other well known ones such as Treatment or Difference coding. It is to
     be integrated in a formula defining the linear model, provided by patsy's
     formula interface. It is recommended to use one hot encoding with the
     testing framework implemented in AOV, especially with more than one factor.
 
-    Example of a formula with OneHot:
+    Example of a formula with OneHot::
+    
         'y1 + y2 ~ C(x1, OneHot) + C(x2, OneHot)'
+    
     See Readme and tutorials for kAOV for more details and examples.
 
     """

@@ -1,8 +1,12 @@
 API Reference
 =============
 
-.. autosummary::
-   :toctree: generated
-   :recursive:
+.. automodule:: kaov.kaov
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :member-order: bysource
 
-   kaov
+.. automodule:: kaov.datasets
+   :members:
+   :show-inheritance:
