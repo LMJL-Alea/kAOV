@@ -34,10 +34,11 @@ dependencies = [
   # macOS x86: because of torch < 2.3
   "numpy<2.0; sys_platform == 'darwin' and platform_machine == 'x86_64'",
   "statsmodels >= 0.14.0",
-  "tqdm",
+  "tqdm"
 ]
 
 [project.optional-dependencies]
+datasets = ["scanpy"]
 docs = [
   "sphinx>=8.0,<10",
   "pydata-sphinx-theme",

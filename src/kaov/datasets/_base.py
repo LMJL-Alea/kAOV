@@ -7,7 +7,7 @@ Created on Wed Jul 29 09:42:04 2026
 """
 from importlib import resources
 import pandas as pd
-import scanpy as sc
+# import scanpy as sc
 
 def load_reversion():
     """
@@ -35,6 +35,7 @@ def load_rabbits_anndata():
         raw and pre-processed counts, metadata, UMAP, etc.
 
     """
+    import scanpy as sc
     data_path = resources.files("kaov.datasets") / "rabbits_ct.h5ad"
     data = pd.read_csv(data_path, index_col=0)
     return data
