@@ -50,3 +50,7 @@ docs = [
 Homepage = "https://github.com/LMJL-Alea/kAOV"
 Documentation = "https://LMJL-Alea.github.io/kAOV/"
 Repository = "https://github.com/LMJL-Alea/kAOV"
+
+[project.readme]
+file = "README.md"
+content-type = "text/markdown"
