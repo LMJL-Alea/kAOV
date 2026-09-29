@@ -6,7 +6,6 @@ build-backend = "setuptools.build_meta"
 name = "kAOV" 
 version = "1.10.0"
 description = "Kernel Analysis of Variance"
-readme = "README.md"
 requires-python = ">=3.8"
 license = "MIT"
 license-files = ["LICENSE.md"]
