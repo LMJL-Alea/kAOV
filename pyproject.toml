@@ -50,8 +50,3 @@ docs = [
 Homepage = "https://github.com/LMJL-Alea/kAOV"
 Documentation = "https://LMJL-Alea.github.io/kAOV/"
 Repository = "https://github.com/LMJL-Alea/kAOV"
-
-[dependency-groups]
-dev = [
-    "spyder>=6.1.3",
-]
