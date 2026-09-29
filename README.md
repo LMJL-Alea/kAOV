@@ -1,6 +1,13 @@
 # kAOV: Kernel Analysis of Variance
 A Python library for general kernel hypothesis testing, accompanying [[1]](#1).
 
+### Platform Support
+
+- **macOS x86** (before Apple switched to ARM processors): Requires Python < 3.13 (due to PyTorch limitations).
+- **Linux/macOS ARM**: Supports Python >= 3.8.
+
+See [`pyproject.toml`](./pyproject.toml) file for more details.
+
 ## Installation
 Install from GitHub:
 ```console
