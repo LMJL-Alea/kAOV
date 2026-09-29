@@ -1,0 +1,5 @@
+include README.md
+include AUTHORS.md
+include LICENSE.md
+recursive-exclude docs *
+recursive-exclude dev *
