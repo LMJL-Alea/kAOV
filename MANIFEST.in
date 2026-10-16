@@ -3,3 +3,4 @@ include AUTHORS.md
 include LICENSE.md
 recursive-exclude docs *
 recursive-exclude dev *
+prune Data
