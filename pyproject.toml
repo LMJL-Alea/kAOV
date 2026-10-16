@@ -54,3 +54,8 @@ Repository = "https://github.com/LMJL-Alea/kAOV"
 [project.readme]
 file = "README.md"
 content-type = "text/markdown"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3.5",
+]
