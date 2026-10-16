@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "kAOV" 
-version = "1.10.1"
+version = "1.11.0"
 description = "Kernel Analysis of Variance"
 requires-python = ">=3.8"
 license = "MIT"
@@ -32,7 +32,8 @@ dependencies = [
   # macOS x86: because of torch < 2.3
   "numpy<2.0; sys_platform == 'darwin' and platform_machine == 'x86_64' and python_version < '3.13'",
   "statsmodels >= 0.14.0",
-  "tqdm"
+  "tqdm",
+  "dill>=0.4.0",
 ]
 
 [project.optional-dependencies]
@@ -53,3 +54,8 @@ Repository = "https://github.com/LMJL-Alea/kAOV"
 [project.readme]
 file = "README.md"
 content-type = "text/markdown"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3.5",
+]
