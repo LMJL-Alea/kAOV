@@ -32,7 +32,8 @@ dependencies = [
   # macOS x86: because of torch < 2.3
   "numpy<2.0; sys_platform == 'darwin' and platform_machine == 'x86_64' and python_version < '3.13'",
   "statsmodels >= 0.14.0",
-  "tqdm"
+  "tqdm",
+  "dill>=0.4.0",
 ]
 
 [project.optional-dependencies]
