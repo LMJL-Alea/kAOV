@@ -643,7 +643,7 @@ class AOV:
         s = "Kernel linear model"
         s += f" with {self.data.nobs} observations and {self.data.nvar} features."
         if self.data_nystrom is not None:
-            n_n, g = self.data.endog.shape
+            # n_n, g = self.data.endog.shape
             s += "\nNystrom approximation with"
             s += f" {self.data_nystrom.nobs} landmarks."
         return s
