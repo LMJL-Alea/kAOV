@@ -70,13 +70,13 @@
         }
     ],
     "codeRepository": "git+https://github.com/LMJL-Alea/kAOV",
-    "dateModified": "2025-01-15",
+    "dateModified": "2026-09-30",
     "description": "A Python library for general kernel hypothesis testing.",
     "keywords": [
         "kernel testing",
         "analysis of variance"
     ],
-    "license": "https://spdx.org/licenses/CC0-1.0",
+    "license": "https://spdx.org/licenses/MIT",
     "name": "kAOV",
     "programmingLanguage": "Python 3",
     "relatedLink": "https://arxiv.org/abs/2405.13799",
