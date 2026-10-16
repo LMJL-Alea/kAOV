@@ -56,6 +56,17 @@
             "email": "ghislain.durif@ens-lyon.fr",
             "familyName": "Durif",
             "givenName": "Ghislain"
+        },
+        {
+            "id": "https://orcid.org/0000-0003-1156-0639",
+            "type": "Person",
+            "affiliation": {
+                "type": "Organization",
+                "name": "Université de Toulouse, INRAE, UR875 MIAT, 31326 Castanet-Tolosan, France"
+            },
+            "email": "nathalie.vialaneix@inrae.fr",
+            "familyName": "Vialaneix",
+            "givenName": "Nathalie"
         }
     ],
     "codeRepository": "git+https://github.com/LMJL-Alea/kAOV",
