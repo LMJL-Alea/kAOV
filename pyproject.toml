@@ -3,8 +3,8 @@ requires = ["setuptools>=61.0.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "kAOV" 
-version = "1.11.0"
+name = "kaov"
+version = "1.11.1"
 description = "Kernel Analysis of Variance"
 requires-python = ">=3.8"
 license = "MIT"
