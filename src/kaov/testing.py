@@ -31,23 +31,13 @@ def dummy_data(n_row=100, n_col=100, n_factor=1, n_group=[2,], seed=None):
             uses system entropy. Defaults to None.
 
     Returns:
-        tuple: A tuple containing:
-            - pandas.DataFrame: The generated dataset with `n_row` rows,
-              `n_col` numeric columns (named col1, col2, ...), and `n_factor`
-              categorical columns (named factor1, factor2, ...).
-            - str: The input formula string for modeling, e.g.,
-              "C(factor1, OneHot) + C(factor2, OneHot)".
-            - str: The output formula string for modeling, e.g.,
-              "col1 + col2 + col3".
-
-        tuple: `(data, input_formula, output_formula)` where:
-            - data (pandas.DataFrame): The generated data set. It contains
+        data (pandas.DataFrame): The generated data set. It contains
             `n_col` numeric columns named `col1` … `col{n_col}` and
             `n_factor` categorical columns named `factor1` … `factor{n_factor}`.
-            - input_formula (str): A formula string that encodes the factor
+        input_formula (str): A formula string that encodes the factor
             columns using one‑hot encoding, e.g.
             `"C(factor1, OneHot) + C(factor2, OneHot)"`.
-            * output_formula (str): A formula string that lists all numeric
+        output_formula (str): A formula string that lists all numeric
             columns, e.g. `"col1 + col2 + … + col{ncol}"`.
 
     Raises:
