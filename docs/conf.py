@@ -12,7 +12,7 @@ author = "Polina Arsenteva, Anthony Ozier-Lafontaine, Ghislain Durif"
 try:
     from importlib.metadata import version as _version
 
-    release = _version("kAOV")
+    release = _version("kaov")
 except Exception:
     release = "dev"
 version = release
