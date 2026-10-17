@@ -12,57 +12,69 @@ def dummy_data(n_row=100, n_col=100, n_factor=1, n_group=[2,], seed=None):
     Generate a synthetic data set for testing statistical models.
 
     The function creates a `pandas.DataFrame` filled with random Gaussian
-    values (mean = 0, std = 1) and adds one‑hot‑encoded categorical factor
+    values (mean = 0, std = 1) and adds one-hot-encoded categorical factor
     columns.  It also returns the formula strings that can be fed directly
     to modelling libraries such as `statsmodels` or `patsy`.
 
-    Note: there is no separation between groups defined by factors.
+    Notes
+    -----
+    There is no separation between groups defined by factors.
 
-    Args:
-        n_row (int, optional): Number of rows (observations) in the dataset.
-            Defaults to 100.
-        n_col (int, optional): Number of columns (numeric features) in the
-            dataset. Defaults to 100.
-        n_factor (int, optional): Number of categorical factor columns to
-            add to the dataset. Defaults to `1`.
-        n_group (list of int, optional): List specifying the number of
-            categories (levels) for each factor column. The length of this
-            list must equal `n_factor`. Defaults to `[2,]`.
-        seed (int, optional): Random seed for reproducibility. If None,
-            uses system entropy. Defaults to None.
+    Parameters
+    ----------
+    n_row : int, optional
+        Number of rows (observations) in the dataset. Defaults to 100.
+    n_col : int, optional
+        Number of columns (numeric features) in the dataset. Defaults to 100.
+    n_factor : int, optional
+        Number of categorical factor columns to add to the dataset.
+        Defaults to 1.
+    n_group : list of int, optional
+        List specifying the number of categories (levels) for each factor
+        column. The length of this list must equal `n_factor`.
+        Defaults to [2,].
+    seed : int, optional
+        Random seed for reproducibility. If None, uses system entropy.
+        Defaults to None.
 
-    Returns:
-        data (pandas.DataFrame): The generated data set. It contains
-            `n_col` numeric columns named `col1` … `col{n_col}` and
-            `n_factor` categorical columns named `factor1` … `factor{n_factor}`.
-        input_formula (str): A formula string that encodes the factor
-            columns using one‑hot encoding, e.g.
-            `"C(factor1, OneHot) + C(factor2, OneHot)"`.
-        output_formula (str): A formula string that lists all numeric
-            columns, e.g. `"col1 + col2 + … + col{ncol}"`.
+    Returns
+    -------
+    data : pandas.DataFrame
+        The generated data set. It contains `n_col` numeric columns named
+        `col1` … `col{n_col}` and `n_factor` categorical columns named
+        `factor1` … `factor{n_factor}`.
+    input_formula : str
+        A formula string that encodes the factor columns using one-hot
+        encoding, e.g. `"C(factor1, OneHot) + C(factor2, OneHot)"`.
+    output_formula : str
+        A formula string that lists all numeric columns, e.g.
+        `"col1 + col2 + … + col{ncol}"`.
 
-    Raises:
-        ValueError: If the length of `n_group` does not equal `n_factor`.
+    Raises
+    ------
+    ValueError
+        If the length of `n_group` does not equal `n_factor`.
 
-    Example:
-        >>> data, input_formula, output_formula = dummy_data(
-        ...     nrow=10,
-        ...     ncol=5,
-        ...     n_factor=2,
-        ...     n_group=[3, 2],
-        ...     seed=42,
-        ... )
-        >>> data.shape
-        (50, 7)
-        >>> data.head()
-           col1  col2  col3  col4  col5 factor1 factor2
-        0  0.33 -0.12  1.07 -0.44  0.55       c2       c1
-        1 -0.23  0.78 -0.91  0.12 -0.34       c1       c2
-        ...
-        >>> input_formula
-        'C(factor1, OneHot) + C(factor2, OneHot)'
-        >>> output_formula
-        'col1 + col2 + col3 + col4 + col5'
+    Examples
+    --------
+    >>> data, input_formula, output_formula = dummy_data(
+    ...     nrow=10,
+    ...     ncol=5,
+    ...     n_factor=2,
+    ...     n_group=[3, 2],
+    ...     seed=42,
+    ... )
+    >>> data.shape
+    (50, 7)
+    >>> data.head()
+       col1  col2  col3  col4  col5 factor1 factor2
+    0  0.33 -0.12  1.07 -0.44  0.55       c2       c1
+    1 -0.23  0.78 -0.91  0.12 -0.34       c1       c2
+    ...
+    >>> input_formula
+    'C(factor1, OneHot) + C(factor2, OneHot)'
+    >>> output_formula
+    'col1 + col2 + col3 + col4 + col5'
     """
     # check input
     if n_factor != len(n_group):
@@ -105,22 +117,32 @@ def assert_equal_data_obj(
     data1: Data, data2: Data, rtol: float = 0, atol: float = 1e-5
 ):
     """
-    Function to compare two Data objects and assert that they are
-    (almost) equal or not.
+    Compare two kaov.kaov.Data objects and assert that they are (almost) equal
+    or not.
 
-    See <https://docs.pytorch.org/docs/stable/testing.html#torch.testing.assert_close>
+    See `torch.testing.assert_close <https://docs.pytorch.org/docs/stable/testing.html#torch.testing.assert_close>`_
     for `atol` and `rtol` definitions.
 
-    Args:
-        data1 (kaov.Data): first Data object to compare.
-        data2 (kaov.Data): second Data object to compare.
-        atol (float): absolute tolerance for comparison.
-        rtol (float): relative tolerance for comparison.
+    Parameters
+    ----------
+    data1 : kaov.kaov.Data
+        First Data object to compare.
+    data2 : kaov.kaov.Data
+        Second Data object to compare.
+    rtol : float, optional
+        Relative tolerance for comparison. Defaults to 0.
+    atol : float, optional
+        Absolute tolerance for comparison. Defaults to 1e-5.
 
-    Returns: no return value.
+    Returns
+    -------
+    None
+        This function performs assertions and returns nothing.
 
-    Raises:
-        AssertError: If one check fails.
+    Raises
+    ------
+    AssertionError
+        If at least one check fails.
     """
 
     # check torch.Tensor attribute equality
@@ -146,29 +168,41 @@ def assert_equal_aov_obj(
     rtol: float = 0, atol: float = 1e-5
 ):
     """
-    Function to compare two AOV objects and assert that they are
-    (almost) equal or not.
+    Compare two kaov.kaov.AOV objects and assert that they are (almost) equal
+    or not.
 
-    See <https://docs.pytorch.org/docs/stable/testing.html#torch.testing.assert_close>
-    or <https://numpy.org/doc/stable/reference/generated/numpy.testing.assert_allclose.html>
+    See `torch.testing.assert_close <https://docs.pytorch.org/docs/stable/testing.html#torch.testing.assert_close>`_
+    or `numpy.testing.assert_allclose <https://numpy.org/doc/stable/reference/generated/numpy.testing.assert_allclose.html>`_
     for `atol` and `rtol` definitions.
 
-    Note: partial comparison to check data input and result output (test
+    Notes
+    -----
+    Partial comparison to check data input and result output (test
     statistic and p-values) if any.
 
-    Args:
-        kfit1 (kaov.AOV): first AOV object to compare.
-        kfit2 (kaov.AOV): second AOV object to compare.
-        trunc (int | None): maximum truncation level (i.e. maximum dimension
-            in embedded space to consider). `None` by default and no
-            truncation is done.
-        atol (float): absolute tolerance for comparison.
-        rtol (float): relative tolerance for comparison.
+    Parameters
+    ----------
+    kfit1 : kaov.kaov.AOV
+        First AOV object to compare.
+    kfit2 : kaov.kaov.AOV
+        Second AOV object to compare.
+    trunc : int or None, optional
+        Maximum truncation level (i.e. maximum dimension in embedded space
+        to consider). None by default and no truncation is done.
+    rtol : float, optional
+        Relative tolerance for comparison. Defaults to 0.
+    atol : float, optional
+        Absolute tolerance for comparison. Defaults to 1e-5.
 
-    Returns: no return value.
+    Returns
+    -------
+    None
+        This function performs assertions and returns nothing.
 
-    Raises:
-        AssertError: If one check fails.
+    Raises
+    ------
+    AssertionError
+        If at least one check fails.
     """
     # TODO: test attribute values after running kaov.AOV.test()
 
@@ -208,43 +242,52 @@ def assert_equal_aov_obj(
 def assert_vec_equal_abs_one(
     vec: np.array | to.Tensor, rtol: float = 0, atol: float = 1e-11
 ):
-    """Check that a vector is equal to a vector of 1 in absolute value.
+    """
+    Check that a vector is equal to a vector of 1 in absolute value.
 
     This function asserts that all elements of the input vector are equal
     to 1 (in absolute value) within the specified tolerances. It supports
     both NumPy arrays and PyTorch tensors.
 
-    Args:
-        vec (np.array | torch.Tensor): Input vector to check. Must be a
-            NumPy array or a PyTorch tensor.
-        rtol (float, optional): Relative tolerance for comparison.
-            Defaults to 0.
-        atol (float, optional): Absolute tolerance for comparison.
-            Defaults to 1e-11.
+    Parameters
+    ----------
+    vec : np.array or torch.Tensor
+        Input vector to check. Must be a NumPy array or a PyTorch tensor.
+    rtol : float, optional
+        Relative tolerance for comparison. Defaults to 0.
+    atol : float, optional
+        Absolute tolerance for comparison. Defaults to 1e-11.
 
-    Returns:
-        None: This function performs assertions and returns nothing.
+    Returns
+    -------
+    None
+        This function performs assertions and returns nothing.
 
-    Raises:
-        TypeError: If `vec` is neither a NumPy array nor a PyTorch tensor.
-        AssertionError: If the vector elements are not equal to 1 (in
-            absolute value) within the specified tolerances.
+    Raises
+    ------
+    TypeError
+        If `vec` is neither a NumPy array nor a PyTorch tensor.
+    AssertionError
+        If the vector elements are not equal to 1 (in absolute value)
+        within the specified tolerances.
 
-    Example:
-        >>> import numpy as np
-        >>> vec = np.array([1.0, -1.0, 1.0])
-        >>> assert_vec_equal_abs_one(vec)
-        # Passes since all elements are ±1
-        >>> vec = np.array([1.0, 0.5, 1.0])
-        >>> assert_vec_equal_abs_one(vec)
-        # Raises AssertionError since 0.5 is not ±1
+    Examples
+    --------
+    >>> import numpy as np
+    >>> vec = np.array([1.0, -1.0, 1.0])
+    >>> assert_vec_equal_abs_one(vec)
+    # Passes since all elements are ±1
+    >>> vec = np.array([1.0, 0.5, 1.0])
+    >>> assert_vec_equal_abs_one(vec)
+    # Raises AssertionError since 0.5 is not ±1
 
-    Notes:
-        - The function checks that the absolute value of each element is
-          equal to 1, meaning both 1 and -1 are acceptable values.
-        - The tolerance parameters follow the same conventions as
-          `numpy.testing.assert_allclose` and
-          `torch.testing.assert_close`.
+    Notes
+    -----
+    - The function checks that the absolute value of each element is
+      equal to 1, meaning both 1 and -1 are acceptable values.
+    - The tolerance parameters follow the same conventions as
+      `numpy.testing.assert_allclose` and
+      `torch.testing.assert_close`.
     """
     if isinstance(vec, np.ndarray):
         np.testing.assert_allclose(
@@ -266,8 +309,9 @@ def assert_same_eigenvectors(
     a: np.ndarray | to.Tensor, b: np.ndarray | to.Tensor,
     rtol: float = 0, atol: float = 1e-11
 ):
-    """Assert that two sets of ordered eigenvectors are identical up
-    to a rotation of angle pi.
+    """
+    Assert that two sets of ordered eigenvectors are identical up to a
+    rotation of pi angle.
 
     Assert that two sets of ordered eigenvectors (by increasing or decreasing
     eigenvalue order) are identical up to a rotation of angle pi, i.e.
@@ -275,47 +319,55 @@ def assert_same_eigenvectors(
     `a[:, j] == -b[:, j]`, meaning that scalar product
     <a[:, j], b[:, j]> = 1 or -1.
 
-    Args:
-        a (np.ndarray | torch.Tensor): First set of eigenvectors. Must be a
-            NumPy array or a PyTorch tensor.
-        b (np.ndarray | torch.Tensor): Second set of eigenvectors. Must be a
-            NumPy array or a PyTorch tensor.
-        rtol (float, optional): Relative tolerance for comparison.
-            Defaults to 0.
-        atol (float, optional): Absolute tolerance for comparison.
-            Defaults to 1e-11.
+    Parameters
+    ----------
+    a : np.ndarray or torch.Tensor
+        First set of eigenvectors. Must be a NumPy array or a PyTorch tensor.
+    b : np.ndarray or torch.Tensor
+        Second set of eigenvectors. Must be a NumPy array or a PyTorch tensor.
+    rtol : float, optional
+        Relative tolerance for comparison. Defaults to 0.
+    atol : float, optional
+        Absolute tolerance for comparison. Defaults to 1e-11.
 
-    Returns:
-        None: This function performs assertions and returns nothing.
+    Returns
+    -------
+    None
+        This function performs assertions and returns nothing.
 
-    Raises:
-        AssertionError: If the input types are invalid, shapes don't match,
-            or the eigenvectors are not identical up to sign.
-        AssertionError: If the scalar products are not equal to 1 or -1
-            within the specified tolerances.
+    Raises
+    ------
+    AssertionError
+        If the input types are invalid, shapes don't match, or the
+        eigenvectors are not identical up to sign.
+    AssertionError
+        If the scalar products are not equal to 1 or -1 within the
+        specified tolerances.
 
-    Example:
-        >>> import numpy as np
-        >>> a = np.array([[1.0, 0.0], [0.0, 1.0]])
-        >>> b = np.array([[1.0, 0.0], [0.0, -1.0]])
-        >>> assert_equal_eigenvectors(a, b)
-        # Passes since columns are either identical or negated
-        >>> c = np.array([[1.0, 0.0], [0.0, 0.5]])
-        >>> assert_equal_eigenvectors(a, c)
-        # Raises AssertionError since second column differs
+    Examples
+    --------
+    >>> import numpy as np
+    >>> a = np.array([[1.0, 0.0], [0.0, 1.0]])
+    >>> b = np.array([[1.0, 0.0], [0.0, -1.0]])
+    >>> assert_equal_eigenvectors(a, b)
+    # Passes since columns are either identical or negated
+    >>> c = np.array([[1.0, 0.0], [0.0, 0.5]])
+    >>> assert_equal_eigenvectors(a, c)
+    # Raises AssertionError since second column differs
 
-    Notes:
-        - Both input arrays must be of the same type (both NumPy arrays or
-          both PyTorch tensors).
-        - The function checks that for each column j, the scalar product
-          <a[:, j], b[:, j]> is either 1 or -1, meaning the eigenvectors
-          are identical up to a sign flip.
-        - The tolerance parameters follow the same conventions as
-          `numpy.testing.assert_allclose` and
-          `torch.testing.assert_close`.
-        - This function is useful for comparing eigenvectors obtained from
-          different eigendecomposition implementations, where eigenvectors
-          may differ by a sign due to numerical considerations.
+    Notes
+    -----
+    - Both input arrays must be of the same type (both NumPy arrays or
+      both PyTorch tensors).
+    - The function checks that for each column j, the scalar product
+      <a[:, j], b[:, j]> is either 1 or -1, meaning the eigenvectors
+      are identical up to a sign flip.
+    - The tolerance parameters follow the same conventions as
+      `numpy.testing.assert_allclose` and
+      `torch.testing.assert_close`.
+    - This function is useful for comparing eigenvectors obtained from
+      different eigendecomposition implementations, where eigenvectors
+      may differ by a sign due to numerical considerations.
     """
 
     # check type

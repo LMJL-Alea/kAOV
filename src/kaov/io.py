@@ -10,14 +10,20 @@ def save(obj, file_name: str, compress: bool = True):
     If compression is enabled, a `.gz` extension is added to `file_name`
     if not already present.
 
-    Args:
-        obj (AOV): an object to save.
-        file_name (str): absolute or relative path to file where to store the
-            input object.
-        compress (bool): flag to enable/disable compression when saving AOV
-            object to disk.
+    Parameters
+    ----------
+    obj : kaov.kaov.AOV
+        An object to save.
+    file_name : str
+        Absolute or relative path to file where to store the input object.
+    compress : bool, optional
+        Flag to enable/disable compression when saving AOV object to disk.
+        Defaults to True.
 
-    Returns: no return value.
+    Returns
+    -------
+    None
+        This function saves the object to disk and returns nothing.
     """
     # compress result file?
     if compress:
@@ -37,11 +43,19 @@ def load(file_name: str, compressed: bool = True):
     Load AOV object that was saved on disk in binary format (pickle/dill)
     possibly with Gzip decompression.
 
-    Args:
-        file_name (str): absolute or relative path to file where the AOV object
-            was saved on disk.
-    compress (bool): flag to enable/disable decompression when loading the
-        AOV object from disk.
+    Parameters
+    ----------
+    file_name : str
+        Absolute or relative path to file where the AOV object was saved
+        on disk.
+    compressed : bool, optional
+        Flag to enable/disable decompression when loading the AOV object
+        from disk. Defaults to True.
+
+    Returns
+    -------
+    kaov.kaov.AOV
+        The loaded AOV object.
     """
     if compressed:
         custom_open = gzip.open
