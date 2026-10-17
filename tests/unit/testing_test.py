@@ -2,10 +2,12 @@ import pytest
 import numpy as np
 import pandas as pd
 from pandas.api.types import is_string_dtype
+import torch as to
 
 from kaov import AOV
 from kaov.testing import (
-    dummy_data, assert_equal_data_obj, assert_equal_aov_obj
+    dummy_data, assert_equal_data_obj, assert_equal_aov_obj,
+    assert_vec_equal_abs_one, assert_same_eigenvectors
 )
 
 
@@ -391,3 +393,352 @@ class Test_assert_equal_aov_obj:
         """Test that objects with different factor structure fail."""
         with pytest.raises(AssertionError):
             assert_equal_aov_obj(aov_object, aov_object_different_factor)
+
+
+class Test_assert_vec_equal_abs_one(object):
+    """Test suite for assert_vec_equal_abs_one function."""
+
+    # Passing tests
+    def test_numpy_array_all_ones(self):
+        """Test with numpy array of all ones."""
+        vec = np.array([1.0, 1.0, 1.0])
+        assert_vec_equal_abs_one(vec)
+
+    def test_numpy_array_mixed_signs(self):
+        """Test with numpy array of 1 and -1 values."""
+        vec = np.array([1.0, -1.0, 1.0, -1.0])
+        assert_vec_equal_abs_one(vec)
+
+    def test_torch_tensor_all_ones(self):
+        """Test with torch tensor of all ones."""
+        vec = to.tensor([1.0, 1.0, 1.0])
+        assert_vec_equal_abs_one(vec)
+
+    def test_torch_tensor_mixed_signs(self):
+        """Test with torch tensor of 1 and -1 values."""
+        vec = to.tensor([1.0, -1.0, 1.0])
+        assert_vec_equal_abs_one(vec)
+
+    def test_single_element_numpy(self):
+        """Test with single element numpy array."""
+        vec = np.array([1.0])
+        assert_vec_equal_abs_one(vec)
+
+    def test_single_element_torch(self):
+        """Test with single element torch tensor."""
+        vec = to.tensor([-1.0])
+        assert_vec_equal_abs_one(vec)
+
+    def test_custom_tolerances(self):
+        """Test with custom tolerance values."""
+        vec = np.array([1.0, 1.0 + 1e-8, 1.0])
+        assert_vec_equal_abs_one(vec, rtol=1e-6, atol=1e-6)
+
+    # Failing tests
+    def test_numpy_array_not_ones(self):
+        """Test with numpy array containing values other than ±1."""
+        vec = np.array([1.0, 0.5, 1.0])
+        with pytest.raises(AssertionError):
+            assert_vec_equal_abs_one(vec)
+
+    def test_torch_tensor_not_ones(self):
+        """Test with torch tensor containing values other than ±1."""
+        vec = to.tensor([1.0, 2.0, 1.0])
+        with pytest.raises(AssertionError):
+            assert_vec_equal_abs_one(vec)
+
+    def test_numpy_array_zeros(self):
+        """Test with numpy array of zeros."""
+        vec = np.array([0.0, 0.0, 0.0])
+        with pytest.raises(AssertionError):
+            assert_vec_equal_abs_one(vec)
+
+    def test_torch_tensor_zeros(self):
+        """Test with torch tensor of zeros."""
+        vec = to.zeros(3)
+        with pytest.raises(AssertionError):
+            assert_vec_equal_abs_one(vec)
+
+    def test_numpy_array_close_but_not_equal(self):
+        """Test with values close to 1 but outside tolerance."""
+        vec = np.array([1.0, 1.0 + 1e-5, 1.0])
+        with pytest.raises(AssertionError):
+            assert_vec_equal_abs_one(vec, rtol=0, atol=1e-11)
+
+    # Type error tests
+    def test_invalid_type_list(self):
+        """Test with a Python list (invalid type)."""
+        vec = [1.0, 1.0, 1.0]
+        with pytest.raises(TypeError, match="Numpy array or a Torch tensor"):
+            assert_vec_equal_abs_one(vec)
+
+    def test_invalid_type_scalar(self):
+        """Test with a scalar value (invalid type)."""
+        vec = 1.0
+        with pytest.raises(TypeError, match="Numpy array or a Torch tensor"):
+            assert_vec_equal_abs_one(vec)
+
+    def test_invalid_type_string(self):
+        """Test with a string (invalid type)."""
+        vec = "not a vector"
+        with pytest.raises(TypeError, match="Numpy array or a Torch tensor"):
+            assert_vec_equal_abs_one(vec)
+
+    # Edge cases
+    def test_empty_numpy_array(self):
+        """Test with empty numpy array."""
+        vec = np.array([])
+        assert_vec_equal_abs_one(vec)  # Should pass trivially
+
+    def test_empty_torch_tensor(self):
+        """Test with empty torch tensor."""
+        vec = to.tensor([])
+        assert_vec_equal_abs_one(vec)  # Should pass trivially
+
+    def test_2d_numpy_array(self):
+        """Test with 2D numpy array."""
+        vec = np.array([[1.0, -1.0], [1.0, -1.0]])
+        assert_vec_equal_abs_one(vec)
+
+    def test_2d_torch_tensor(self):
+        """Test with 2D torch tensor."""
+        vec = to.tensor([[1.0, -1.0], [1.0, -1.0]])
+        assert_vec_equal_abs_one(vec)
+
+    def test_float32_dtype(self):
+        """Test with float32 dtype."""
+        vec = np.array([1.0, -1.0], dtype=np.float32)
+        assert_vec_equal_abs_one(vec)
+
+    def test_integer_dtype(self):
+        """Test with integer dtype."""
+        vec = np.array([1, -1, 1])
+        assert_vec_equal_abs_one(vec)
+
+
+class Test_assert_same_eigenvectors(object):
+    """Test suite for assert_same_eigenvectors function."""
+
+    @pytest.fixture
+    def dummy_data(self):
+        """Generate dummy data for testing."""
+        # Generate data
+        data, _, _ = dummy_data(
+            n_row=20, n_col=10, n_factor=2, n_group=[3, 4], seed=42
+        )
+        # return only numerical matrix
+        return data.iloc[:, :10].values.copy()
+
+    @pytest.fixture
+    def sym_matrix(self, dummy_data):
+        """Create a symmetric matrix from dummy data."""
+        data_tensor = to.from_numpy(dummy_data)
+        return to.matmul(data_tensor, data_tensor.T)
+
+    @pytest.fixture
+    def torch_eigen(self, sym_matrix):
+        """Compute eigendecomposition using torch."""
+        sp, ev = to.linalg.eigh(sym_matrix)
+        return sp, ev
+
+    @pytest.fixture
+    def numpy_eigen(self, sym_matrix):
+        """Compute eigendecomposition using numpy."""
+        sp, ev = np.linalg.eigh(sym_matrix.numpy())
+        return sp, ev
+
+    @pytest.fixture
+    def filtered_torch_eigen(self, torch_eigen):
+        """Get eigenvectors for non-null eigenvalues from torch."""
+        sp, ev = torch_eigen
+        mask = sp >= 1e-12
+        return ev[:, mask]
+
+    @pytest.fixture
+    def filtered_numpy_eigen(self, numpy_eigen):
+        """Get eigenvectors for non-null eigenvalues from numpy."""
+        sp, ev = numpy_eigen
+        mask = sp >= 1e-12
+        return ev[:, mask]
+
+    # Basic equality tests
+    def test_torch_vs_numpy(self, filtered_torch_eigen, filtered_numpy_eigen):
+        """Test that torch and numpy eigenvectors are equal."""
+        assert_same_eigenvectors(
+            filtered_torch_eigen,
+            to.from_numpy(filtered_numpy_eigen),
+            rtol=0, atol=1e-11
+        )
+
+    def test_numpy_vs_torch(self, filtered_torch_eigen, filtered_numpy_eigen):
+        """Test that numpy and torch eigenvectors are equal."""
+        assert_same_eigenvectors(
+            filtered_torch_eigen.numpy(),
+            filtered_numpy_eigen,
+            rtol=0, atol=1e-11
+        )
+
+    def test_identical_torch(self, filtered_torch_eigen):
+        """Test with identical torch tensors."""
+        assert_same_eigenvectors(
+            filtered_torch_eigen, filtered_torch_eigen
+        )
+
+    def test_identical_numpy(self, filtered_numpy_eigen):
+        """Test with identical numpy arrays."""
+        assert_same_eigenvectors(
+            filtered_numpy_eigen, filtered_numpy_eigen
+        )
+
+    # Sign flip tests
+    def test_negated_torch(self, filtered_torch_eigen):
+        """Test with negated torch tensor."""
+        assert_same_eigenvectors(
+            filtered_torch_eigen, -filtered_torch_eigen
+        )
+
+    def test_negated_numpy(self, filtered_numpy_eigen):
+        """Test with negated numpy array."""
+        assert_same_eigenvectors(
+            filtered_numpy_eigen, -filtered_numpy_eigen
+        )
+
+    def test_mixed_sign_flip(self):
+        """Test with mixed sign flips across columns."""
+        a = np.array([[1.0, 0.0, 0.0],
+                      [0.0, 1.0, 0.0],
+                      [0.0, 0.0, 1.0]])
+        b = np.array([[1.0, 0.0, 0.0],
+                      [0.0, -1.0, 0.0],
+                      [0.0, 0.0, 1.0]])
+        assert_same_eigenvectors(a, b)
+
+    # Failing tests
+    def test_different_vectors_fail(self):
+        """Test that different eigenvectors raise AssertionError."""
+        a = np.array([[1.0, 0.0], [0.0, 1.0]])
+        b = np.array([[1.0, 0.0], [0.0, 0.5]])
+        with pytest.raises(AssertionError):
+            assert_same_eigenvectors(a, b)
+
+    def test_different_shapes_fail(self):
+        """Test that different shapes raise AssertionError."""
+        a = np.array([[1.0, 0.0], [0.0, 1.0]])
+        b = np.array([[1.0, 0.0]])
+        with pytest.raises(AssertionError):
+            assert_same_eigenvectors(a, b)
+
+    def test_mixed_types_fail(self):
+        """Test that mixed types raise AssertionError."""
+        a = np.array([[1.0, 0.0], [0.0, 1.0]])
+        b = to.tensor([[1.0, 0.0], [0.0, 1.0]])
+        with pytest.raises(AssertionError):
+            assert_same_eigenvectors(a, b)
+
+    # Tolerance tests
+    def test_custom_tolerances(self):
+        """Test with custom tolerance values."""
+        a = np.array([[1.0, 0.0], [0.0, 1.0]])
+        b = np.array([[1.0, 1e-8], [0.0, 1.0]])
+        assert_same_eigenvectors(a, b, rtol=1e-6, atol=1e-6)
+
+    def test_strict_tolerances_fail(self):
+        """Test that strict tolerances fail for slightly different vectors."""
+        a = np.array([[1.0, 0.0], [0.0, 1.0]])
+        b = np.array([[1.0 + 1e-8, 0.0], [0.0, 1.0]])
+        with pytest.raises(AssertionError):
+            assert_same_eigenvectors(a, b, rtol=0, atol=1e-11)
+
+    # Edge cases
+    def test_single_vector(self):
+        """Test with single column vectors."""
+        a = np.array([[1.0], [0.0], [0.0]])
+        b = np.array([[1.0], [0.0], [0.0]])
+        assert_same_eigenvectors(a, b)
+
+    def test_single_vector_negated(self):
+        """Test with single column vectors (negated)."""
+        a = np.array([[1.0], [0.0], [0.0]])
+        b = np.array([[-1.0], [0.0], [0.0]])
+        assert_same_eigenvectors(a, b)
+
+    def test_empty_vectors(self):
+        """Test with empty vectors."""
+        a = np.array([]).reshape(0, 0)
+        b = np.array([]).reshape(0, 0)
+        assert_same_eigenvectors(a, b)
+
+    def test_2x2_identity(self):
+        """Test with 2x2 identity matrix."""
+        a = np.eye(2)
+        b = np.eye(2)
+        assert_same_eigenvectors(a, b)
+
+    def test_3x3_permutation(self):
+        """Test with permuted eigenvectors."""
+        a = np.eye(3)
+        b = np.array([[0.0, 1.0, 0.0],
+                      [1.0, 0.0, 0.0],
+                      [0.0, 0.0, 1.0]])
+        # This should fail since columns are permuted, not just sign-flipped
+        with pytest.raises(AssertionError):
+            assert_same_eigenvectors(a, b)
+
+    # Orthogonality tests
+    def test_orthogonal_vectors(self):
+        """Test with orthogonal eigenvectors."""
+        a = np.array([[1.0, 0.0], [0.0, 1.0]])
+        b = np.array([[0.0, 1.0], [1.0, 0.0]])
+        # This should fail since columns are swapped
+        with pytest.raises(AssertionError):
+            assert_same_eigenvectors(a, b)
+
+    # dtype tests
+    def test_float32_dtype(self):
+        """Test with float32 dtype."""
+        a = np.array([[1.0, 0.0], [0.0, 1.0]], dtype=np.float32)
+        b = np.array([[1.0, 0.0], [0.0, 1.0]], dtype=np.float32)
+        assert_same_eigenvectors(a, b)
+
+    def test_float64_dtype(self):
+        """Test with float64 dtype."""
+        a = np.array([[1.0, 0.0], [0.0, 1.0]], dtype=np.float64)
+        b = np.array([[1.0, 0.0], [0.0, 1.0]], dtype=np.float64)
+        assert_same_eigenvectors(a, b)
+
+    # Large matrix test
+    def test_large_matrix(self):
+        """Test with a larger matrix."""
+        rng = np.random.default_rng(42)
+        a = rng.normal(size=(50, 10))
+        # Create orthonormal columns
+        q, _ = np.linalg.qr(a)
+        b = q.copy()
+        # Negate some columns
+        b[:, 1] = -b[:, 1]
+        b[:, 3] = -b[:, 3]
+        assert_same_eigenvectors(q, b)
+
+    # Test with actual eigendecomposition
+    def test_with_actual_eigendecomposition(self, sym_matrix):
+        """Test with actual eigendecomposition results."""
+        # Compute eigendecomposition twice
+        sp1, ev1 = to.linalg.eigh(sym_matrix)
+        sp2, ev2 = to.linalg.eigh(sym_matrix)
+
+        # Filter non-null eigenvalues
+        mask1 = sp1 >= 1e-12
+        mask2 = sp2 >= 1e-12
+
+        assert_same_eigenvectors(
+            ev1[:, mask1], ev2[:, mask2], rtol=0, atol=1e-11
+        )
+
+    def test_with_negated_eigendecomposition(self, sym_matrix):
+        """Test with negated eigendecomposition results."""
+        sp, ev = to.linalg.eigh(sym_matrix)
+        mask = sp >= 1e-12
+
+        assert_same_eigenvectors(
+            ev[:, mask], -ev[:, mask], rtol=0, atol=1e-11
+        )

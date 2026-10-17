@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import pandas.testing as pdt
+import torch as to
 import torch.testing as tot
 
 from kaov import AOV, Data
@@ -202,3 +203,135 @@ def assert_equal_aov_obj(
     # kernel parameter (scalar)
     for attr in ['kernel_bandwidth', 'kernel_function', 'kernel_median_coef']:
         assert getattr(kfit1, attr) == getattr(kfit2, attr)
+
+
+def assert_vec_equal_abs_one(
+    vec: np.array | to.Tensor, rtol: float = 0, atol: float = 1e-11
+):
+    """Check that a vector is equal to a vector of 1 in absolute value.
+
+    This function asserts that all elements of the input vector are equal
+    to 1 (in absolute value) within the specified tolerances. It supports
+    both NumPy arrays and PyTorch tensors.
+
+    Args:
+        vec (np.array | torch.Tensor): Input vector to check. Must be a
+            NumPy array or a PyTorch tensor.
+        rtol (float, optional): Relative tolerance for comparison.
+            Defaults to 0.
+        atol (float, optional): Absolute tolerance for comparison.
+            Defaults to 1e-11.
+
+    Returns:
+        None: This function performs assertions and returns nothing.
+
+    Raises:
+        TypeError: If `vec` is neither a NumPy array nor a PyTorch tensor.
+        AssertionError: If the vector elements are not equal to 1 (in
+            absolute value) within the specified tolerances.
+
+    Example:
+        >>> import numpy as np
+        >>> vec = np.array([1.0, -1.0, 1.0])
+        >>> assert_vec_equal_abs_one(vec)
+        # Passes since all elements are ±1
+        >>> vec = np.array([1.0, 0.5, 1.0])
+        >>> assert_vec_equal_abs_one(vec)
+        # Raises AssertionError since 0.5 is not ±1
+
+    Notes:
+        - The function checks that the absolute value of each element is
+          equal to 1, meaning both 1 and -1 are acceptable values.
+        - The tolerance parameters follow the same conventions as
+          `numpy.testing.assert_allclose` and
+          `torch.testing.assert_close`.
+    """
+    if isinstance(vec, np.ndarray):
+        np.testing.assert_allclose(
+            np.abs(vec), np.ones(vec.shape, dtype=vec.dtype),
+            atol=atol, rtol=rtol
+        )
+    elif isinstance(vec, to.Tensor):
+        to.testing.assert_close(
+            to.abs(vec), to.ones(vec.shape, dtype=vec.dtype),
+            atol=atol, rtol=rtol
+        )
+    else:
+        raise TypeError(
+            "Input `vec` should be a Numpy array or a Torch tensor."
+        )
+
+
+def assert_same_eigenvectors(
+    a: np.ndarray | to.Tensor, b: np.ndarray | to.Tensor,
+    rtol: float = 0, atol: float = 1e-11
+):
+    """Assert that two sets of ordered eigenvectors are identical up
+    to a rotation of angle pi.
+
+    Assert that two sets of ordered eigenvectors (by increasing or decreasing
+    eigenvalue order) are identical up to a rotation of angle pi, i.e.
+    assert that for any column index j, we have `a[:, j] == b[:, j]` or
+    `a[:, j] == -b[:, j]`, meaning that scalar product
+    <a[:, j], b[:, j]> = 1 or -1.
+
+    Args:
+        a (np.ndarray | torch.Tensor): First set of eigenvectors. Must be a
+            NumPy array or a PyTorch tensor.
+        b (np.ndarray | torch.Tensor): Second set of eigenvectors. Must be a
+            NumPy array or a PyTorch tensor.
+        rtol (float, optional): Relative tolerance for comparison.
+            Defaults to 0.
+        atol (float, optional): Absolute tolerance for comparison.
+            Defaults to 1e-11.
+
+    Returns:
+        None: This function performs assertions and returns nothing.
+
+    Raises:
+        AssertionError: If the input types are invalid, shapes don't match,
+            or the eigenvectors are not identical up to sign.
+        AssertionError: If the scalar products are not equal to 1 or -1
+            within the specified tolerances.
+
+    Example:
+        >>> import numpy as np
+        >>> a = np.array([[1.0, 0.0], [0.0, 1.0]])
+        >>> b = np.array([[1.0, 0.0], [0.0, -1.0]])
+        >>> assert_equal_eigenvectors(a, b)
+        # Passes since columns are either identical or negated
+        >>> c = np.array([[1.0, 0.0], [0.0, 0.5]])
+        >>> assert_equal_eigenvectors(a, c)
+        # Raises AssertionError since second column differs
+
+    Notes:
+        - Both input arrays must be of the same type (both NumPy arrays or
+          both PyTorch tensors).
+        - The function checks that for each column j, the scalar product
+          <a[:, j], b[:, j]> is either 1 or -1, meaning the eigenvectors
+          are identical up to a sign flip.
+        - The tolerance parameters follow the same conventions as
+          `numpy.testing.assert_allclose` and
+          `torch.testing.assert_close`.
+        - This function is useful for comparing eigenvectors obtained from
+          different eigendecomposition implementations, where eigenvectors
+          may differ by a sign due to numerical considerations.
+    """
+
+    # check type
+    assert isinstance(a, np.ndarray) and isinstance(b, np.ndarray) or \
+        isinstance(a, to.Tensor) and isinstance(b, to.Tensor)
+
+    # check dimension
+    assert a.shape == b.shape
+
+    # setup required functions
+    einsum_fun = np.einsum if isinstance(a, np.ndarray) else to.einsum
+
+    abs_fun = np.abs if isinstance(a, np.ndarray) else to.abs
+
+    # compute column-wise scalar product
+    col_scal_prod = einsum_fun('ij,ij->j', a, b)
+
+    # check results (assert that all scalar product result are 1 or -1)
+    assert_vec_equal_abs_one(abs_fun(col_scal_prod), rtol=rtol, atol=atol)
