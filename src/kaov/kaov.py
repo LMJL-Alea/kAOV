@@ -16,43 +16,14 @@ from scipy.stats import chi2, f, gaussian_kde, beta
 import matplotlib.pyplot as plt
 from matplotlib import rc, colormaps
 from torch import cdist, exp, matmul, diag, trace, sqrt, pow, cat
-from torch import eye, ones, tensor, float64, from_numpy, Tensor
+from torch import eye, ones, tensor, float64
 from torch.linalg import multi_dot, inv
 import sys
 
 from .linalg import ordered_eigsy
+from .utils import convert_to_torch
 
 sys.setrecursionlimit(10 ** 6)
-
-
-def convert_to_torch(A):
-    """
-    Converts A to torch.Tensor.
-
-    Parameters
-    ----------
-    A : array_like
-        Container to convert.
-
-    Returns
-    -------
-    B : torch.Tensor
-        A converted to torch.
-
-    """
-    if isinstance(A, pd.Series):
-        B = from_numpy(A.to_numpy().reshape(-1, 1)).double()
-    if isinstance(A, pd.DataFrame):
-        B = from_numpy(A.to_numpy()).double()
-    if isinstance(A, Tensor):
-        B = A.double()
-    else:
-        try:
-            X = A.to_numpy() if not isinstance(A, np.ndarray) else A.copy()
-            B = from_numpy(X).double()
-        except AttributeError:
-            print(f'Unknown data type {type(A)}')
-    return B
 
 
 def distances(x, y=None):
