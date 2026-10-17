@@ -3,42 +3,51 @@ import pandas as pd
 import torch as to
 
 
-def convert_to_torch(A):
+def convert_to_torch(
+    data: np.ndarray | pd.DataFrame | pd.Series | to.Tensor
+) -> to.Tensor:
     """
-    Converts an array (either Numpy or Pandas) to a torch.Tensor.
+    Convert a NumPy array, Pandas DataFrame, Pandas Series or PyTorch tensor
+    to the corresponding float64 PyTorch tensor.
 
     Parameters
     ----------
-    A : array_like
-        Container to convert.
+    data : numpy.ndarray, pandas.DataFrame, pandas.Series or torch.Tensor
+        Input array-like data to convert.
 
     Returns
     -------
-    B : torch.Tensor
-        A converted to torch.
+    torch.Tensor
+        A PyTorch tensor with the same shape as the input (except for Series,
+        which are converted to 2D column vectors) and float64 dtype.
 
+    Raises
+    ------
+    TypeError
+        If the input is not a NumPy array, Pandas DataFrame, Pandas Series pr
+        torch.Tensor.
     """
-    # FIXME
-    # 1. fails with list input
-    # 2. Following warning is raised with Pandas objects:
-    # kAOV/src/kaov/utils.py:22: UserWarning: The given NumPy array is not writable, and PyTorch does not support non-writable tensors. This means writing to this tensor will result in undefined behavior. You may want to copy the array to protect its data or make it writable before converting it to a tensor. This type of warning will be suppressed for the rest of this program. (Triggered internally at /pytorch/torch/csrc/utils/tensor_numpy.cpp:213.)
-    # B = to.from_numpy(A.to_numpy().reshape(-1, 1)).double()
-    # 3. refactor function
+    if isinstance(data, to.Tensor):
+        return data.double()
 
-    if isinstance(A, pd.Series):
-        B = to.from_numpy(A.to_numpy().reshape(-1, 1)).double()
-    elif isinstance(A, pd.DataFrame):
-        B = to.from_numpy(A.to_numpy()).double()
+    elif isinstance(data, np.ndarray):
+        # Ensure the array is writable to avoid PyTorch warnings
+        if not data.flags.writeable:
+            data = data.copy()
+        return to.as_tensor(data, dtype=to.float64)
 
-    elif isinstance(A, to.Tensor):
-        B = A.double()
+    elif isinstance(data, pd.Series):
+        # Convert Series to a 2D column vector
+        data_np = data.to_numpy(dtype=np.float64, copy=True).reshape(-1, 1)
+        return to.as_tensor(data_np, dtype=to.float64)
+
+    elif isinstance(data, pd.DataFrame):
+        # Convert DataFrame to NumPy array (preserves shape)
+        data_np = data.to_numpy(dtype=np.float64, copy=True)
+        return to.as_tensor(data_np, dtype=to.float64)
+
     else:
-        print("DEBUG")
-        try:
-            X = A.to_numpy() if not isinstance(A, np.ndarray) else A.copy()
-            B = to.from_numpy(X).double()
-        except AttributeError:
-            print(f'Unknown data type {type(A)}')
-            B = None
-
-    return B
+        raise TypeError(
+            f"Unsupported input type: {type(data)}. "
+            "Expected numpy.ndarray, pandas.DataFrame, or pandas.Series."
+        )
