@@ -1,7 +1,9 @@
 import pytest
 import torch as to
 
-from kaov.kernel import linear_kernel, gauss_kernel, _median_dist
+from kaov.kernel import (
+    linear_kernel, gauss_kernel, _median_dist, gauss_kernel_median
+)
 
 
 class Test_linear_kernel:
@@ -527,3 +529,215 @@ class Test_median_dist(object):
         # Sorted: 0, 0, 0, 4, 4, 9, 9, 25, 25
         # Median = 4
         assert result.item() == 4.0
+
+
+class Test_gauss_kernel_median(object):
+    """Test suite for gauss_kernel_median function."""
+
+    # Output
+    def test_returns_tuple(self):
+        """Test that function returns a tuple."""
+        x = to.tensor([[0.0, 0.0], [1.0, 1.0], [2.0, 2.0]])
+        result = gauss_kernel_median(x)
+
+        assert isinstance(result, tuple)
+        assert len(result) == 2
+
+        result = gauss_kernel_median(x, return_bandwidth=True)
+
+        assert isinstance(result, tuple)
+        assert len(result) == 2
+
+    # Basic functionality tests
+    def test_returns_kernel_and_none(self):
+        """Test that function returns kernel and None by default."""
+        x = to.tensor([[0.0, 0.0], [1.0, 1.0], [2.0, 2.0]])
+        kernel, bandwidth = gauss_kernel_median(x)
+
+        assert callable(kernel)
+        assert bandwidth is None
+
+    def test_returns_kernel_and_bandwidth(self):
+        """Test that function returns kernel and bandwidth when requested."""
+        x = to.tensor([[0.0, 0.0], [1.0, 1.0], [2.0, 2.0]])
+        kernel, bandwidth = gauss_kernel_median(x, return_bandwidth=True)
+
+        assert callable(kernel)
+        assert bandwidth is not None
+        assert isinstance(bandwidth, to.Tensor)
+
+    # Bandwidth calculation tests
+    def test_median_bandwidth_value(self):
+        """Test that median bandwidth is correctly computed."""
+        x = to.tensor([[0.0, 0.0], [1.0, 1.0], [2.0, 2.0]])
+        _, bandwidth = gauss_kernel_median(x, return_bandwidth=True)
+
+        # Median distance = 2, sqrt(2) ≈ 1.414
+        to.testing.assert_close(bandwidth, to.sqrt(to.tensor(2.0)))
+
+    def test_median_bandwidth_with_coef(self):
+        """Test median bandwidth with coefficient."""
+        x = to.tensor([[0.0, 0.0], [1.0, 1.0], [2.0, 2.0]])
+        _, bandwidth = gauss_kernel_median(
+            x, median_coef=4, return_bandwidth=True
+        )
+
+        # Median distance = 2, sqrt(2 * 4) = sqrt(8) ≈ 2.828
+        to.testing.assert_close(bandwidth, to.sqrt(to.tensor(8.0)))
+
+    def test_float_bandwidth(self):
+        """Test with float bandwidth value."""
+        x = to.tensor([[0.0, 0.0], [1.0, 1.0], [2.0, 2.0]])
+        kernel, bandwidth = gauss_kernel_median(
+            x, bandwidth=2.0, return_bandwidth=True
+        )
+
+        assert bandwidth == 2.0
+        assert callable(kernel)
+
+    # Kernel behavior tests
+    def test_kernel_with_median_bandwidth(self):
+        """Test kernel output with median bandwidth."""
+        x = to.tensor([[0.0, 0.0], [1.0, 1.0], [2.0, 2.0]])
+        # Median distance = 2, so bandwidth = 1 with median_coef = 0.5
+        kernel, _ = gauss_kernel_median(x, median_coef=0.5)
+        result = kernel(x)
+
+        assert result.shape == (3, 3)
+
+        expected = to.tensor([
+            [1.0, to.exp(to.tensor(-1.0)), to.exp(to.tensor(-4.0))],
+            [to.exp(to.tensor(-1.0)), 1.0, to.exp(to.tensor(-1.0))],
+            [to.exp(to.tensor(-4.0)), to.exp(to.tensor(-1.0)), 1.0]
+        ])
+        to.testing.assert_close(result, expected)
+
+    def test_kernel_with_float_bandwidth(self):
+        """Test kernel output with float bandwidth."""
+        x = to.tensor([[0.0, 0.0], [1.0, 1.0], [2.0, 2.0]])
+        kernel, _ = gauss_kernel_median(x, bandwidth=1.0)
+        result = kernel(x)
+
+        assert result.shape == (3, 3)
+
+        expected = to.tensor([
+            [1.0, to.exp(to.tensor(-1.0)), to.exp(to.tensor(-4.0))],
+            [to.exp(to.tensor(-1.0)), 1.0, to.exp(to.tensor(-1.0))],
+            [to.exp(to.tensor(-4.0)), to.exp(to.tensor(-1.0)), 1.0]
+        ])
+        to.testing.assert_close(result, expected)
+
+    def test_kernel_with_y_argument(self):
+        """Test kernel with y argument."""
+        x = to.tensor([[0.0, 0.0], [1.0, 1.0]])
+        y = to.tensor([[0.0, 0.0], [1.0, 1.0], [2.0, 2.0]])
+
+        # Median distance = 2, so bandwidth = 1 with median_coef = 0.5
+        kernel, _ = gauss_kernel_median(x, y, median_coef=0.5)
+        result = kernel(x, y)
+
+        assert result.shape == (2, 3)
+        expected = to.tensor([
+            [1.0, to.exp(to.tensor(-1.0)), to.exp(to.tensor(-4.0))],
+            [to.exp(to.tensor(-1.0)), 1.0, to.exp(to.tensor(-1.0))]
+        ])
+        to.testing.assert_close(result, expected)
+
+    def test_kernel_equivalence_with_gauss_kernel(self):
+        """Test that kernel matches gauss_kernel with same sigma."""
+        x = to.tensor([[0.0, 0.0], [1.0, 1.0], [2.0, 2.0]])
+        kernel, bandwidth = gauss_kernel_median(
+            x, return_bandwidth=True
+        )
+
+        result = kernel(x)
+        expected = gauss_kernel(x, sigma=bandwidth)
+        to.testing.assert_close(result, expected)
+
+    # Edge cases
+    def test_single_point(self):
+        """Test with single point."""
+        x = to.tensor([[1.0, 2.0]])
+
+        with pytest.warns(UserWarning):
+            kernel, bandwidth = gauss_kernel_median(
+                x, return_bandwidth=True
+            )
+
+        assert callable(kernel)
+        assert bandwidth == 0.0  # sqrt(0) = 0
+
+    def test_identical_points(self):
+        """Test with identical points."""
+        x = to.tensor([[1.0, 2.0], [1.0, 2.0]])
+
+        # null mediane distance
+        with pytest.warns(UserWarning):
+            kernel, bandwidth = gauss_kernel_median(
+                x, return_bandwidth=True
+            )
+
+        # All distances are 0, median = 0, sqrt(0) = 0
+        assert bandwidth == 0.0
+
+    def test_float32_dtype(self):
+        """Test with float32 dtype."""
+        x = to.tensor([[0.0, 0.0], [3.0, 4.0]], dtype=to.float32)
+
+        # null mediane distance
+        with pytest.warns(UserWarning):
+            kernel, bandwidth = gauss_kernel_median(
+                x, return_bandwidth=True
+            )
+
+        assert bandwidth.dtype == to.float32
+
+        # c.f. Test_mediane_dist.test_median_with_two_points
+        to.testing.assert_close(
+            bandwidth, to.sqrt(to.tensor(12.5, dtype=to.float32))
+        )
+
+        # Verify kernel values
+        result = kernel(x)
+
+        assert result.dtype == to.float32
+
+        # With sigma=sqrt(12.5), k(0,1) = exp(-25/(2*12.5)) = exp(-1)
+        expected_off_diag = to.exp(to.tensor(-1))
+        expected = to.tensor(
+            [[1.0, expected_off_diag],
+             [expected_off_diag, 1.0]],
+            dtype=to.float32
+        )
+        to.testing.assert_close(result, expected)
+
+    def test_float64_dtype(self):
+        """Test with float64 dtype."""
+        x = to.tensor([[0.0, 0.0], [3.0, 4.0]], dtype=to.float64)
+
+        # null mediane distance
+        with pytest.warns(UserWarning):
+            kernel, bandwidth = gauss_kernel_median(
+                x, return_bandwidth=True
+            )
+
+        assert bandwidth.dtype == to.float64
+
+        # c.f. Test_mediane_dist.test_median_with_two_points
+        to.testing.assert_close(
+            bandwidth, to.sqrt(to.tensor(12.5, dtype=to.float64))
+        )
+
+        # Verify kernel values
+        result = kernel(x)
+
+        assert result.dtype == to.float64
+
+        # With sigma=sqrt(12.5), k(0,1) = exp(-25/(2*12.5)) = exp(-1)
+        expected_off_diag = to.exp(to.tensor(-1))
+        expected = to.tensor(
+            [[1.0, expected_off_diag],
+             [expected_off_diag, 1.0]],
+            dtype=to.float64
+        )
+        to.testing.assert_close(result, expected)
