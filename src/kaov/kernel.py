@@ -1,3 +1,4 @@
+from functools import partial
 import warnings
 
 import torch as to
@@ -159,7 +160,7 @@ def gauss_kernel_median(
         computed_bandwidth = to.sqrt(_median_dist(x, y) * median_coef)
     else:
         computed_bandwidth = bandwidth
-    kernel = lambda a, b=None: gauss_kernel(x=a, y=b, sigma=computed_bandwidth)
+    kernel = partial(gauss_kernel, sigma=computed_bandwidth)
     if return_bandwidth:
         return kernel, computed_bandwidth
     else:
