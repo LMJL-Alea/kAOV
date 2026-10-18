@@ -1,6 +1,5 @@
 from kaov import AOV
 import numpy as np
-import os
 import pandas as pd
 import random
 
