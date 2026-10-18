@@ -377,7 +377,10 @@ class Test_ordered_eigsy(object):
             assert_same_eigenvectors(ev.numpy(), np.eye(3), rtol=0, atol=1e-12)
 
     def test_non_symmetric_matrix(self):
-        """Test with non-symmetric matrix (should still work but may have complex eigenvalues)."""
+        """
+        Test with non-symmetric matrix (should still work but may have
+        complex eigenvalues).
+        """
         matrix = to.tensor([[1.0, 2.0], [3.0, 4.0]])
 
         # Should either work or raise an appropriate error
