@@ -21,22 +21,10 @@ from torch.linalg import multi_dot, inv
 import sys
 
 from .kernel import linear_kernel, gauss_kernel_median
-from .linalg import ordered_eigsy
+from .linalg import ordered_eigsy, _calculate_XXinv_and_ProjImX
 from .utils import convert_to_torch
 
 sys.setrecursionlimit(10 ** 6)
-
-
-def _calculate_XXinv_and_ProjImX(X):
-    XX = matmul(X.T, X)
-    sp, ev = ordered_eigsy(XX)
-    # Cut off the spectrum since the matrix is not full rank:
-    cutoff = np.linalg.matrix_rank(X)
-    sp = sp[: cutoff]
-    ev = ev[:, : cutoff]
-    _XXinv = multi_dot([ev, diag(sp ** -1), ev.T])
-    _ProjImX = multi_dot([X, _XXinv, X.T])
-    return _XXinv, _ProjImX
 
 
 class OneHot(object):

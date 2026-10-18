@@ -1,5 +1,6 @@
 import warnings
 
+import numpy as np
 import torch as to
 
 
@@ -107,3 +108,55 @@ def ordered_eigsy(
         # no clipping
         # output
         return sp, ev
+
+
+def _calculate_XXinv_and_ProjImX(X: to.Tensor):
+    """
+    Calculate the pseudo-inverse of X^T X and the projection matrix onto
+    the column space of X.
+
+    Computes the Moore-Penrose pseudo-inverse of the Gram matrix (X^T X)
+    and the orthogonal projection matrix onto the column space of X.
+    The computation uses the eigendecomposition of X^T X, truncating the
+    spectrum at the numerical rank of X to handle rank-deficient matrices.
+
+    Parameters
+    ----------
+    X : torch.Tensor
+        2-d input matrix of shape (n_samples, n_features).
+
+    Returns
+    -------
+    _XXinv : torch.Tensor
+        Pseudo-inverse of X^T X, of shape (n_features, n_features).
+    _ProjImX : torch.Tensor
+        Projection matrix onto the column space of X, of shape
+        (n_samples, n_samples).
+
+    Notes
+    -----
+    - The function uses the eigendecomposition of X^T X via
+      `ordered_eigsy` and truncates eigenvalues/eigenvectors at the
+      numerical rank of X.
+    - For full-rank matrices, `_XXinv` is the standard inverse of X^T X.
+    - The projection matrix satisfies `_ProjImX @ X = X` and is
+      idempotent (`_ProjImX @ _ProjImX = _ProjImX`).
+
+    Examples
+    --------
+    >>> X = to.tensor([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]])
+    >>> XXinv, ProjImX = _calculate_XXinv_and_ProjImX(X)
+    >>> XXinv.shape
+    torch.Size([2, 2])
+    >>> ProjImX.shape
+    torch.Size([3, 3])
+    """
+    XX = to.matmul(X.T, X)
+    sp, ev = ordered_eigsy(XX)
+    # Cut off the spectrum since the matrix is not full rank:
+    cutoff = np.linalg.matrix_rank(X)
+    sp = sp[: cutoff]
+    ev = ev[:, : cutoff]
+    _XXinv = to.linalg.multi_dot([ev, to.diag(sp ** -1), ev.T])
+    _ProjImX = to.linalg.multi_dot([X, _XXinv, X.T])
+    return _XXinv, _ProjImX
