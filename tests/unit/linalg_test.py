@@ -4,8 +4,146 @@ import pytest
 import numpy as np
 import torch as to
 
-from kaov.linalg import ordered_eigsy
+from kaov.linalg import distances, ordered_eigsy
 from kaov.testing import dummy_data, assert_same_eigenvectors
+
+
+class Test_distances(object):
+    """Test suite for distances function."""
+
+    # Output
+    def test_returns_tensor(self):
+        """Test that return type is torch.Tensor."""
+        x = to.tensor([[1.0, 2.0]])
+        result = distances(x)
+
+        assert isinstance(result, to.Tensor)
+
+    # Basic functionality tests
+    def test_square_matrix(self):
+        """Test with square input matrix."""
+        x = to.tensor([[0.0, 0.0], [1.0, 1.0]])
+        result = distances(x)
+
+        assert result.shape == (2, 2)
+        expected = to.tensor([[0.0, 2.0], [2.0, 0.0]])
+        to.testing.assert_close(result, expected)
+
+    def test_rectangular_matrix(self):
+        """Test with rectangular input matrix."""
+        x = to.tensor([[0.0, 0.0], [1.0, 1.0], [2.0, 2.0]])
+        result = distances(x)
+
+        assert result.shape == (3, 3)
+        expected = to.tensor([
+            [0.0, 2.0, 8.0],
+            [2.0, 0.0, 2.0],
+            [8.0, 2.0, 0.0]
+        ])
+        to.testing.assert_close(result, expected)
+
+    def test_two_different_inputs(self):
+        """Test with two different input tensors."""
+        x = to.tensor([[0.0, 0.0], [1.0, 1.0]])
+        y = to.tensor([[2.0, 2.0], [3.0, 3.0], [4.0, 4.0]])
+        result = distances(x, y)
+
+        assert result.shape == (2, 3)
+        expected = to.tensor([
+            [8.0, 18.0, 32.0],
+            [2.0, 8.0, 18.0]
+        ])
+        to.testing.assert_close(result, expected)
+
+    def test_y_is_none_uses_x(self):
+        """Test that y=None uses x as second input."""
+        x = to.tensor([[1.0, 2.0], [3.0, 4.0]])
+        result_with_y = distances(x, x)
+        result_without_y = distances(x)
+
+        to.testing.assert_close(
+            result_with_y, result_without_y, rtol=0, atol=1e-11
+        )
+
+    # Value correctness tests
+    def test_zero_distance(self):
+        """Test that distance to self is zero."""
+        x = to.tensor([[1.0, 2.0], [3.0, 4.0]])
+        result = distances(x)
+
+        to.testing.assert_close(
+            to.diag(result), to.zeros(2), rtol=0, atol=1e-11
+        )
+
+    def test_known_values(self):
+        """Test with known distance values."""
+        x = to.tensor([[0.0, 0.0], [3.0, 4.0]])
+        result = distances(x)
+
+        # Distance between (0,0) and (3,4) is 5, squared is 25
+        assert result[0, 1] == 25.0
+        assert result[1, 0] == 25.0
+
+    def test_single_row(self):
+        """Test with single row tensor."""
+        x = to.tensor([[1.0, 2.0, 3.0]])
+        result = distances(x)
+
+        assert result.shape == (1, 1)
+        assert result[0, 0] == 0.0
+
+    def test_symmetry(self):
+        """Test that distance matrix is symmetric."""
+        x = to.tensor([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]])
+        result = distances(x)
+
+        to.testing.assert_close(result, result.T, rtol=0, atol=1e-11)
+
+    # Error handling tests
+    def test_1d_input_raises(self):
+        """Test that 1D input raises ValueError."""
+        x = to.tensor([1.0, 2.0, 3.0])
+        with pytest.raises(ValueError, match="2-dimensional"):
+            distances(x)
+
+    def test_3d_input_raises(self):
+        """Test that 3D input raises ValueError."""
+        x = to.rand(2, 3, 4)
+        with pytest.raises(ValueError, match="2-dimensional"):
+            distances(x)
+
+    def test_mismatched_dimensions_raises(self):
+        """Test that mismatched second dimensions raise ValueError."""
+        x = to.tensor([[1.0, 2.0], [3.0, 4.0]])
+        y = to.tensor([[1.0, 2.0, 3.0]])
+        with pytest.raises(ValueError, match="same second dimension"):
+            distances(x, y)
+
+    # Edge cases
+    def test_empty_tensor(self):
+        """Test with empty tensor."""
+        x = to.empty(0, 3)
+        result = distances(x)
+
+        assert result.shape == (0, 0)
+
+    def test_float32_dtype(self):
+        """Test with float32 dtype."""
+        x = to.tensor([[0.0, 0.0], [1.0, 1.0]], dtype=to.float32)
+        result = distances(x)
+
+        assert result.dtype == to.float32
+        expected = to.tensor([[0.0, 2.0], [2.0, 0.0]], dtype=to.float32)
+        to.testing.assert_close(result, expected)
+
+    def test_float64_dtype(self):
+        """Test with float64 dtype."""
+        x = to.tensor([[0.0, 0.0], [1.0, 1.0]], dtype=to.float64)
+        result = distances(x)
+
+        assert result.dtype == to.float64
+        expected = to.tensor([[0.0, 2.0], [2.0, 0.0]], dtype=to.float64)
+        to.testing.assert_close(result, expected)
 
 
 class Test_ordered_eigsy(object):

@@ -15,44 +15,15 @@ from patsy import dmatrices, DesignInfo, ContrastMatrix
 from scipy.stats import chi2, f, gaussian_kde, beta
 import matplotlib.pyplot as plt
 from matplotlib import rc, colormaps
-from torch import cdist, exp, matmul, diag, trace, sqrt, pow, cat
+from torch import exp, matmul, diag, trace, sqrt, pow, cat
 from torch import eye, ones, tensor, float64
 from torch.linalg import multi_dot, inv
 import sys
 
-from .linalg import ordered_eigsy
+from .linalg import distances, ordered_eigsy
 from .utils import convert_to_torch
 
 sys.setrecursionlimit(10 ** 6)
-
-
-def distances(x, y=None):
-    """
-    Computes the distances between each pair of the two collections of row
-    vectors of x and y, or x and itself if y is not provided.
-
-    Parameters
-    ----------
-    x : torch.Tensor
-        Input 2-d tensor.
-    y : None or torch.Tensor
-        Input 2-d tensor. Replaced by `x` if None.
-
-    Returns
-    -------
-    sq_dists : torch.Tensor
-        Distance matrix.
-
-    """
-    if y is None:
-        y = x.clone()
-    if x.ndim != 2 or y.ndim != 2:
-        raise ValueError("2-dimensional input is expected.")
-    if x.shape[1] != y.shape[1]:
-        raise ValueError("`x` and `y` must have the same second dimension.")
-    sq_dists = cdist(x, y,
-                     compute_mode='use_mm_for_euclid_dist_if_necessary').pow(2)
-    return sq_dists
 
 
 def _median(x, y=None):

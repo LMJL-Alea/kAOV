@@ -3,6 +3,36 @@ import warnings
 import torch as to
 
 
+def distances(x: to.Tensor, y: to.Tensor | None = None):
+    """
+    Computes the squared Euclidean distances between each pair of the two
+    collections of row vectors in x and y, or x and itself if y is not
+    provided.
+
+    Parameters
+    ----------
+    x : torch.Tensor
+        Input 2-d tensor.
+    y : None or torch.Tensor
+        Input 2-d tensor. Replaced by `x` if None.
+
+    Returns
+    -------
+    sq_dists : torch.Tensor
+        Squared distance matrix of dimension nb row in `x` times nb row in `y`.
+    """
+    if y is None:
+        y = x.clone()
+    if x.ndim != 2 or y.ndim != 2:
+        raise ValueError("2-dimensional input is expected.")
+    if x.shape[1] != y.shape[1]:
+        raise ValueError("`x` and `y` must have the same second dimension.")
+    sq_dists = to.cdist(
+        x, y, compute_mode='use_mm_for_euclid_dist_if_necessary'
+    ).pow(2)
+    return sq_dists
+
+
 def ordered_eigsy(
     matrix: to.Tensor, eps: float | None = None, clip: bool = True
 ):
