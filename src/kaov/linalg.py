@@ -1,6 +1,5 @@
 import warnings
 
-import numpy as np
 import torch as to
 
 
@@ -154,7 +153,7 @@ def _calculate_XXinv_and_ProjImX(X: to.Tensor):
     XX = to.matmul(X.T, X)
     sp, ev = ordered_eigsy(XX)
     # Cut off the spectrum since the matrix is not full rank:
-    cutoff = np.linalg.matrix_rank(X)
+    cutoff = to.linalg.matrix_rank(X)
     sp = sp[: cutoff]
     ev = ev[:, : cutoff]
     _XXinv = to.linalg.multi_dot([ev, to.diag(sp ** -1), ev.T])
