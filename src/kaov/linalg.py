@@ -22,7 +22,7 @@ def distances(x: to.Tensor, y: to.Tensor | None = None):
         Squared distance matrix of dimension nb row in `x` times nb row in `y`.
     """
     if y is None:
-        y = x.clone()
+        y = x
     if x.ndim != 2 or y.ndim != 2:
         raise ValueError("2-dimensional input is expected.")
     if x.shape[1] != y.shape[1]:
