@@ -65,7 +65,11 @@ def _median_dist(x, y=None):
 
     Notes
     -----
-    This is an internal function.
+    - This is an internal function.
+    - Per `torch.median` documentation: "The median is not unique for input
+    tensors with an even number of elements. In this case the lower of the
+    two medians is returned. To compute the mean of both medians, use
+    `torch.quantile()` with `q=0.5` instead."
 
     Parameters
     ----------

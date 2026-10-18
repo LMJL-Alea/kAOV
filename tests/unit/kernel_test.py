@@ -1,7 +1,7 @@
 import pytest
 import torch as to
 
-from kaov.kernel import linear_kernel, gauss_kernel
+from kaov.kernel import linear_kernel, gauss_kernel, _median_dist
 
 
 class Test_linear_kernel:
@@ -341,3 +341,189 @@ class Test_gauss_kernel(object):
         result = gauss_kernel(x)
 
         assert result.dtype == to.float64
+
+
+class Test_median_dist(object):
+    """Test suite for _median_dist function."""
+
+    # Basic functionality tests
+    def test_basic_call(self):
+        """Test median of pairwise squared distances."""
+        x = to.tensor([[0.0, 0.0], [1.0, 1.0], [2.0, 2.0]])
+        result = _median_dist(x)
+
+        # Check that output is a scalar tensor
+        assert isinstance(result, to.Tensor)
+        assert result.ndim == 0
+
+        # Distances: 0, 2, 8, 2, 0, 2
+        # Sorted: 0, 0, 2, 2, 2, 8
+        # Median = (2 + 2) / 2 = 2
+        to.testing.assert_close(result, to.tensor(2.0))
+
+    def test_median_with_two_points(self):
+        """Test median with two points."""
+        x = to.tensor([[0.0, 0.0], [3.0, 4.0]])
+
+        with pytest.warns(UserWarning, match="median is null"):
+            # because bad median definition in PyTorch
+            result = _median_dist(x)
+
+        # Check that output is a scalar tensor
+        assert isinstance(result, to.Tensor)
+        assert result.ndim == 0
+
+        # Distance: 0, 25, 25, 0
+        # Sorted: 0, 0, 25, 25
+        # Median = (0 + 25) / 2 = 12.5 (PyTorch median = 0)
+        to.testing.assert_close(result, to.tensor(12.5))
+
+    def test_median_with_y_provided(self):
+        """Test median when y is provided."""
+        x = to.tensor([[0.0, 0.0], [1.0, 1.0]])
+        y = to.tensor([[2.0, 2.0], [3.0, 3.0]])
+
+        result = _median_dist(x, y)
+
+        # Check that output is a scalar tensor
+        assert isinstance(result, to.Tensor)
+        assert result.ndim == 0
+
+        # All points: (0,0), (1,1), (2,2), (3,3)
+        # Distances: 0, 2, 8, 18, 2, 0, 2, 8, 8, 2, 0, 2, 18, 8, 2, 0
+        # Sorted: 0, 0, 0, 0, 2, 2, 2, 2, 2, 2, 8, 8, 8, 8, 18, 18
+        # Median = (2 + 2) / 2 = 2
+        to.testing.assert_close(result, to.tensor(2.0))
+
+    def test_y_is_none_uses_x_only(self):
+        """Test that y=None computes distances within x only."""
+        x = to.tensor([[0.0, 0.0], [1.0, 1.0]])
+
+        with pytest.warns(UserWarning, match="median is null"):
+            # because bad median definition in PyTorch
+            result_without_y = _median_dist(x)
+
+        with pytest.warns(UserWarning, match="median is null"):
+            # because bad median definition in PyTorch
+            result_with_y = _median_dist(x, x)
+
+        # Check that output is a scalar tensor
+        assert isinstance(result_without_y, to.Tensor)
+        assert result_without_y.ndim == 0
+        assert isinstance(result_with_y, to.Tensor)
+        assert result_with_y.ndim == 0
+
+        # Without y:
+        # - Distances: 0, 2, 2, 0
+        # - Sorted: 0, 0, 2, 2
+        # - Median = (0 + 2) / 2 = 1  (PyTorch median = 0)
+        # With y:
+        # - Distances: 0, 2, 0, 2, 2, 0, 2, 0, 0, 2, 0, 2, 2, 0, 2, 0
+        # - Sorted: 0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 2, 2, 2, 2, 2, 2
+        # - Median = (0 + 2) / 2 = 1  (PyTorch median = 0)
+        to.testing.assert_close(result_without_y, to.tensor(1.0))
+        to.testing.assert_close(result_with_y, to.tensor(1.0))
+
+    # Zero median handling tests
+    def test_zero_median_replaced_by_mean(self):
+        """Test that zero median is replaced by mean with warning."""
+        x = to.tensor([[1.0, 1.0], [1.0, 1.0], [1.0, 2.0]])
+
+        with pytest.warns(UserWarning, match="median is null"):
+            result = _median_dist(x)
+
+        # Check that output is a scalar tensor
+        assert isinstance(result, to.Tensor)
+        assert result.ndim == 0
+
+        # Distances: 0, 0, 1, 0, 0, 1, 1, 1, 0
+        # Sorted: 0, 0, 0, 0, 0, 1, 1, 1, 1
+        # Median = 0
+        # Mean = (0+0+0+0+0+1+1+1+1)/9 = 4/9 ≈ 0.44
+        to.testing.assert_close(result, to.tensor(4/9))
+
+    def test_all_zero_dataset(self):
+        """Test with all-zero dataset."""
+        x = to.zeros(3, 2)
+
+        with pytest.warns(UserWarning, match="median is null"):
+            with pytest.warns(UserWarning, match="whole dataset is null"):
+                result = _median_dist(x)
+
+        # Check that output is a scalar tensor
+        assert isinstance(result, to.Tensor)
+        assert result.ndim == 0
+
+        # Only distance is 0
+        assert result.item() == 0.0
+
+    # Edge cases
+    def test_single_point_with_warning(self):
+        """Test single point triggers warning for zero median."""
+        x = to.tensor([[1.0, 2.0]])
+
+        with pytest.warns(UserWarning, match="median is null"):
+            with pytest.warns(UserWarning, match="whole dataset is null"):
+                result = _median_dist(x)
+
+        # Check that output is a scalar tensor
+        assert isinstance(result, to.Tensor)
+        assert result.ndim == 0
+
+        # Only distance is 0
+        assert result.item() == 0.0
+
+    def test_float32_dtype(self):
+        """Test with float32 dtype."""
+        x = to.tensor([[0.0, 0.0], [1.0, 1.0]], dtype=to.float32)
+
+        with pytest.warns(UserWarning, match="median is null"):
+            # because bad median definition in PyTorch
+            result = _median_dist(x)
+
+        # Check that output is a scalar tensor
+        assert isinstance(result, to.Tensor)
+        assert result.ndim == 0
+        assert result.dtype == to.float32
+
+    def test_float64_dtype(self):
+        """Test with float64 dtype."""
+        x = to.tensor([[0.0, 0.0], [1.0, 1.0]], dtype=to.float64)
+
+        with pytest.warns(UserWarning, match="median is null"):
+            # because bad median definition in PyTorch
+            result = _median_dist(x)
+
+        # Check that output is a scalar tensor
+        assert isinstance(result, to.Tensor)
+        assert result.ndim == 0
+        assert result.dtype == to.float64
+
+    # Known value tests
+    def test_known_values_regular_grid(self):
+        """Test with regular grid points."""
+        x = to.tensor([[0.0], [1.0], [2.0], [3.0]])
+        result = _median_dist(x)
+
+        # Check that output is a scalar tensor
+        assert isinstance(result, to.Tensor)
+        assert result.ndim == 0
+
+        # Distances: 0,1,4,9, 1,0,1,4, 4,1,0,1, 9,4,1,0
+        # Sorted: 0,0,0,0, 1,1,1,1, 1,1, 4,4,4, 9,9
+        # Median = (1+1)/2 = 1
+        assert result.item() == 1.0
+
+    def test_known_values_irregular(self):
+        """Test with irregular spacing."""
+        x = to.tensor([[0.0], [2.0], [5.0]])
+        result = _median_dist(x)
+
+        # Check that output is a scalar tensor
+        assert isinstance(result, to.Tensor)
+        assert result.ndim == 0
+
+        # Distances: 0, 4, 25, 4, 0, 9, 25, 9, 0
+        # Sorted: 0, 0, 0, 4, 4, 9, 9, 25, 25
+        # Median = 4
+        assert result.item() == 4.0
