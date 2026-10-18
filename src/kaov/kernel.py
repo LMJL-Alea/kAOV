@@ -5,7 +5,7 @@ import torch as to
 from .linalg import distances
 
 
-def linear_kernel(x, y=None):
+def linear_kernel(x: to.Tensor, y: to.Tensor | None = None):
     """
     Computes the standard linear kernel k(x,y)= <x,y>.
 
@@ -28,7 +28,7 @@ def linear_kernel(x, y=None):
     return K
 
 
-def gauss_kernel(x, y=None, sigma=1):
+def gauss_kernel(x: to.Tensor, y: to.Tensor | None = None, sigma: float = 1):
     """
     Computes the standard Gaussian kernel
 
@@ -40,7 +40,7 @@ def gauss_kernel(x, y=None, sigma=1):
         2-d tensor containing the data to kernalize.
     y : None or torch.Tensor
         2-d tensor containing the data to kernalize. Replaced by `x` if None.
-    sigma : int
+    sigma : float
         Standard deviation for Gaussian kernel, 1 by default.
 
     Returns
@@ -54,7 +54,7 @@ def gauss_kernel(x, y=None, sigma=1):
     return K
 
 
-def _median_dist(x, y=None):
+def _median_dist(x: to.Tensor, y: to.Tensor | None = None):
     """
     Compute the median of pairwise squared distances.
 
@@ -123,8 +123,11 @@ def _median_dist(x, y=None):
         return median
 
 
-def gauss_kernel_median(x, y=None, bandwidth='median', median_coef=1,
-                        return_bandwidth=False):
+def gauss_kernel_median(
+    x: to.Tensor, y: to.Tensor | None = None,
+    bandwidth: str | float = 'median', median_coef: float = 1,
+    return_bandwidth: bool = False
+):
     """
     Computes the gaussian kernel with bandwidth set as the median of the
     distances between pairs of observations (`bandwidth='median'`).
