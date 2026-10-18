@@ -42,7 +42,7 @@ def linear_kernel(x, y=None):
 
     """
     if y is None:
-        y = x.clone()
+        y = x
     K = to.matmul(x, y.T)
     return K
 
