@@ -144,15 +144,16 @@ def gauss_kernel_median(
     median_coef : float
         Coefficient in the badwidth calculation, 1 by default.
     return_bandwidth : bool
-        Bandwidth, calculated with the median method. False by default.
+        Flag to enable/disable returned bandwidth value calculated with the
+        median method. False by default.
 
     Returns
     -------
     kernel : callable
         Kernel function.
-    if return_bandwidth=True:
-    computed_bandwidth : float
-        Bandwidth, calculated with the median method.
+    computed_bandwidth : float or None
+        Bandwidth if `return_bandwidth=True`, calculated with the median
+        method, else `None`.
     """
     if bandwidth == 'median':
         computed_bandwidth = to.sqrt(_median_dist(x, y) * median_coef)
@@ -160,6 +161,6 @@ def gauss_kernel_median(
         computed_bandwidth = bandwidth
     kernel = lambda a, b=None: gauss_kernel(x=a, y=b, sigma=computed_bandwidth)
     if return_bandwidth:
-        return (kernel, computed_bandwidth)
+        return kernel, computed_bandwidth
     else:
-        return kernel
+        return kernel, None
