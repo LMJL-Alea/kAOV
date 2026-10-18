@@ -2,7 +2,8 @@ import pytest
 import torch as to
 
 from kaov.kernel import (
-    linear_kernel, gauss_kernel, _median_dist, gauss_kernel_median
+    linear_kernel, gauss_kernel, _median_dist, gauss_kernel_median,
+    _quantile_dist
 )
 
 
@@ -741,3 +742,197 @@ class Test_gauss_kernel_median(object):
             dtype=to.float64
         )
         to.testing.assert_close(result, expected)
+
+
+class Test_quantile_dist(object):
+    """Test suite for _quantile_dist function."""
+
+    # Output
+    def test_returns_tensor(self):
+        """Test that return type is torch.Tensor."""
+        x = to.tensor([[0.0, 0.0], [1.0, 1.0]])
+        result = _quantile_dist(x)
+
+        assert isinstance(result, to.Tensor)
+
+    # Basic functionality tests
+    def test_median_default(self):
+        """Test default quantile (q=0.5, median)."""
+        x = to.tensor([[0.0, 0.0], [1.0, 1.0], [2.0, 2.0]])
+        result = _quantile_dist(x)
+
+        # Non-zero distances: 2, 8, 2, 2 -> sorted: 2, 2, 2, 8
+        # Median = (2 + 2) / 2 = 2
+        to.testing.assert_close(result, to.tensor(2.0))
+
+    def test_median_with_two_points(self):
+        """Test median with two points."""
+        x = to.tensor([[0.0, 0.0], [3.0, 4.0]])
+        result = _quantile_dist(x)
+
+        # Non-zero distance: 25 (only one)
+        to.testing.assert_close(result, to.tensor(25.0))
+
+    def test_median_with_y_provided(self):
+        """Test median when y is provided."""
+        x = to.tensor([[0.0, 0.0], [1.0, 1.0]])
+        y = to.tensor([[2.0, 2.0], [3.0, 3.0]])
+        result = _quantile_dist(x, y)
+
+        # All points: (0,0), (1,1), (2,2), (3,3)
+        # Non-zero distances: 2, 8, 18, 2, 2, 8, 8, 2, 2, 18, 8, 2
+        # Sorted: 2,2,2,2,2,2, 8,8,8,8, 18,18
+        # Median = (2 + 8) / 2 = 5
+        to.testing.assert_close(result, to.tensor(5.0))
+
+    # Quantile parameter tests
+    def test_quantile_25(self):
+        """Test with q=0.25 (first quartile)."""
+        x = to.tensor([[0.0, 0.0], [1.0, 1.0], [2.0, 2.0]])
+        result = _quantile_dist(x, q=0.25)
+
+        # Non-zero distances: 2, 8, 2, 2 -> sorted: 2, 2, 2, 8
+        # 25th percentile = 2
+        to.testing.assert_close(result, to.tensor(2.0))
+
+    def test_quantile_75(self):
+        """Test with q=0.75 (third quartile)."""
+        x = to.tensor([[0.0, 0.0], [1.0, 1.0], [2.0, 2.0]])
+        result = _quantile_dist(x, q=0.75)
+
+        # Non-zero distances: 2, 8, 2, 2 -> sorted: 2, 2, 2, 8
+        # 75th percentile = 6.5 (interpolated between 2 and 8)
+        to.testing.assert_close(result, to.tensor(6.5))
+
+    def test_quantile_1(self):
+        """Test with q=1.0 (maximum)."""
+        x = to.tensor([[0.0, 0.0], [1.0, 1.0], [2.0, 2.0]])
+        result = _quantile_dist(x, q=1.0)
+
+        # Non-zero distances: 2, 8, 2, 2 -> max = 8
+        to.testing.assert_close(result, to.tensor(8.0))
+
+    def test_quantile_0(self):
+        """Test with q=0.0 (minimum)."""
+        x = to.tensor([[0.0, 0.0], [1.0, 1.0], [2.0, 2.0]])
+        result = _quantile_dist(x, q=0.0)
+
+        # Non-zero distances: 2, 8, 2, 2 -> min = 2
+        to.testing.assert_close(result, to.tensor(2.0))
+
+    # exclude_zero parameter tests
+    def test_exclude_zero_true(self):
+        """Test with exclude_zero=True (default)."""
+        x = to.tensor([[0.0, 0.0], [0.0, 0.0], [2.0, 0.0]])
+        result = _quantile_dist(x)
+
+        # Non-zero distances: 4, 4, 4 -> median = 4
+        to.testing.assert_close(result, to.tensor(4.0))
+
+    def test_exclude_zero_false(self):
+        """Test with exclude_zero=False."""
+
+        # Median
+        x = to.tensor([[0.0, 0.0], [0.0, 0.0], [2.0, 0.0]])
+        result = _quantile_dist(x, exclude_zero=False)
+
+        # All distances: 0, 0, 4, 0, 4, 0, 4, 4, 0
+        # Sorted: 0, 0, 0, 0, 0, 4, 4, 4, 4
+        # Median = 0
+        to.testing.assert_close(result, to.tensor(0.0))
+
+        # 25th percentile
+        x = to.tensor([[0.0, 0.0], [0.0, 0.0], [2.0, 0.0]])
+        result = _quantile_dist(x, q=0.25, exclude_zero=False)
+
+        # All distances: 0, 0, 4, 0, 4, 0, 4, 4, 0
+        # Sorted: 0, 0, 0, 0, 0, 4, 4, 4, 4
+        # 25th percentile
+        to.testing.assert_close(result, to.tensor(0.0))
+
+    # All-zero distance tests
+    def test_all_zero_distances_warns(self):
+        """Test that all-zero distances trigger warning."""
+        x = to.tensor([[1.0, 1.0], [1.0, 1.0], [1.0, 1.0]])
+
+        with pytest.warns(
+            UserWarning, match="All distances between observations are zero"
+        ):
+            result = _quantile_dist(x)
+
+        to.testing.assert_close(result, to.tensor(0.0))
+
+    def test_all_zero_distances_exclude_zero_false(self):
+        """Test all-zero distances with exclude_zero=False."""
+        x = to.tensor([[1.0, 1.0], [1.0, 1.0], [1.0, 1.0]])
+
+        result = _quantile_dist(x, exclude_zero=False)
+
+        # All distances are 0, no warning needed since zeros are included
+        to.testing.assert_close(result, to.tensor(0.0))
+
+    def test_single_point_warns(self):
+        """Test single point triggers warning."""
+        x = to.tensor([[1.0, 2.0]])
+
+        with pytest.warns(
+            UserWarning, match="All distances between observations are zero"
+        ):
+            result = _quantile_dist(x)
+
+        to.testing.assert_close(result, to.tensor(0.0))
+
+    # Edge cases
+    def test_single_point_exclude_zero_false(self):
+        """Test single point with exclude_zero=False."""
+        x = to.tensor([[1.0, 2.0]])
+        result = _quantile_dist(x, exclude_zero=False)
+
+        # Only distance is 0
+        to.testing.assert_close(result, to.tensor(0.0))
+
+    def test_identical_points_warns(self):
+        """Test identical points trigger warning."""
+        x = to.tensor([[1.0, 2.0], [1.0, 2.0]])
+
+        with pytest.warns(
+            UserWarning, match="All distances between observations are zero"
+        ):
+            result = _quantile_dist(x)
+
+        to.testing.assert_close(result, to.tensor(0.0))
+
+    def test_float32_dtype(self):
+        """Test with float32 dtype."""
+        x = to.tensor([[0.0, 0.0], [1.0, 1.0]], dtype=to.float32)
+        result = _quantile_dist(x)
+
+        assert result.dtype == to.float32
+
+    def test_float64_dtype(self):
+        """Test with float64 dtype."""
+        x = to.tensor([[0.0, 0.0], [1.0, 1.0]], dtype=to.float64)
+        result = _quantile_dist(x)
+
+        assert result.dtype == to.float64
+
+    # Known value tests
+    def test_known_values_regular_grid(self):
+        """Test with regular grid points."""
+        x = to.tensor([[0.0], [1.0], [2.0], [3.0]])
+        result = _quantile_dist(x)
+
+        # Non-zero distances: 1,4,9, 1,1,4, 4,1,1, 9,4,1
+        # Sorted: 1,1,1,1,1,1, 4,4,4,4, 9,9
+        # Median = (1 + 4) / 2 = 2.5
+        to.testing.assert_close(result, to.tensor(2.5))
+
+    def test_known_values_irregular(self):
+        """Test with irregular spacing."""
+        x = to.tensor([[0.0], [2.0], [5.0]])
+        result = _quantile_dist(x)
+
+        # Non-zero distances: 4, 25, 9, 9, 25, 4
+        # Sorted: 4, 4, 9, 9, 25, 25
+        # Median = (9 + 9) / 2 = 9
+        to.testing.assert_close(result, to.tensor(9.0))

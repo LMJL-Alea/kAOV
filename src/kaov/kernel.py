@@ -165,3 +165,78 @@ def gauss_kernel_median(
         return kernel, computed_bandwidth
     else:
         return kernel, None
+
+
+def _quantile_dist(
+    x: to.Tensor, y: to.Tensor | None = None,
+    q: float = 0.5, exclude_zero: bool = True
+):
+    """
+    Compute the quantile of pairwise squared distances.
+
+    Computes the specified quantile of all pairwise squared distances
+    between rows of `x` (and `y` if provided). This is commonly used as
+    a heuristic for setting the bandwidth parameter in kernel methods
+    (e.g., Gaussian kernel).
+
+    Notes
+    -----
+    - This is an internal function.
+    - The default quantile `q=0.5` corresponds to the median.
+    - Per `torch.quantile` documentation: "If the requested quantile is
+      between two data points, linear interpolation is used."
+    - When `exclude_zero=True`, only non-zero distances are used to
+      compute the quantile.
+
+    Parameters
+    ----------
+    x : torch.Tensor
+        2-d tensor containing the data points.
+    y : None or torch.Tensor, optional
+        2-d tensor containing additional data points. If None, distances
+        are computed within `x` only. Defaults to None.
+    q : float, optional
+        Quantile to compute, between 0 and 1. Defaults to 0.5 (median).
+    exclude_zero : bool, optional
+        If True, only non-zero distances are used for quantile
+        computation. Defaults to True.
+
+    Returns
+    -------
+    float
+        The quantile of the pairwise squared distances as a scalar
+        torch tensor.
+
+    Warns
+    -----
+    UserWarning
+        If all distances are zero (and `exclude_zero=True`), warning
+        that the dataset contains only null distances.
+
+    Examples
+    --------
+    >>> x = to.tensor([[0.0, 0.0], [1.0, 1.0], [2.0, 2.0]])
+    >>> _quantile_dist(x)
+    tensor(2.)
+
+    >>> x = to.tensor([[0.0, 0.0], [1.0, 1.0]])
+    >>> y = to.tensor([[2.0, 2.0], [3.0, 3.0]])
+    >>> _quantile_dist(x, y, q=0.25)
+    tensor(2.)
+    """
+    if y is None:
+        dtot = distances(x)
+    else:
+        dtot = distances(to.cat((x, y)))
+
+    if exclude_zero:
+        # Filter out zero distances
+        dtot = dtot[dtot > 0]
+
+    if dtot.numel() == 0:
+        warnings.warn("All distances between observations are zero.")
+        return to.tensor(0.0)
+
+    quantile = to.quantile(dtot, q=q)
+
+    return quantile
