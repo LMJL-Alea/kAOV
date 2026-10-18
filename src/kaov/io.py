@@ -1,5 +1,5 @@
-import dill
 import gzip
+import dill
 
 
 def save(obj, file_name: str, compress: bool = True):
