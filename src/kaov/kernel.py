@@ -5,25 +5,6 @@ import torch as to
 from .linalg import distances
 
 
-def _median(x, y=None):
-    if y is None:
-        dtot = distances(x)
-    else:
-        dtot = distances(to.cat((x, y)))
-    median = dtot.median()
-    if median == 0:
-        warnings.warn(
-            "The median is null. To avoid a kernel with zero bandwidth, " +
-            "the median is replaced by the mean."
-        )
-        mean = dtot.mean()
-        if mean == 0:
-            warnings.warn('The whole dataset is null.')
-        return mean
-    else:
-        return median
-
-
 def linear_kernel(x, y=None):
     """
     Computes the standard linear kernel k(x,y)= <x,y>.
@@ -73,6 +54,71 @@ def gauss_kernel(x, y=None, sigma=1):
     return K
 
 
+def _median_dist(x, y=None):
+    """
+    Compute the median of pairwise squared distances.
+
+    Computes the median of all pairwise squared distances between rows of
+    `x` (and `y` if provided). This is commonly used as a heuristic for
+    setting the bandwidth parameter in kernel methods (e.g., Gaussian
+    kernel).
+
+    Notes
+    -----
+    This is an internal function.
+
+    Parameters
+    ----------
+    x : torch.Tensor
+        2-d tensor containing the data points.
+    y : None or torch.Tensor, optional
+        2-d tensor containing additional data points. If None, distances
+        are computed within `x` only. Defaults to None.
+
+    Returns
+    -------
+    float
+        The median of the pairwise squared distances. If the median is
+        zero, the mean is returned instead (with a warning).
+
+    Warns
+    -----
+    UserWarning
+        If the median is zero, warning that the median is replaced by
+        the mean to avoid a kernel with zero bandwidth.
+    UserWarning
+        If both the median and mean are zero, warning that the whole
+        dataset is null.
+
+    Examples
+    --------
+    >>> x = to.tensor([[0.0, 0.0], [1.0, 1.0], [2.0, 2.0]])
+    >>> _median_dist(x)
+    tensor(2.)
+
+    >>> x = to.tensor([[0.0, 0.0], [1.0, 1.0]])
+    >>> y = to.tensor([[2.0, 2.0], [3.0, 3.0]])
+    >>> _median_dist(x, y)
+    tensor(4.)
+    """
+    if y is None:
+        dtot = distances(x)
+    else:
+        dtot = distances(to.cat((x, y)))
+    median = dtot.median()
+    if median == 0:
+        warnings.warn(
+            "The median is null. To avoid a kernel with zero bandwidth, " +
+            "the median is replaced by the mean."
+        )
+        mean = dtot.mean()
+        if mean == 0:
+            warnings.warn('The whole dataset is null.')
+        return mean
+    else:
+        return median
+
+
 def gauss_kernel_median(x, y=None, bandwidth='median', median_coef=1,
                         return_bandwidth=False):
     """
@@ -102,7 +148,7 @@ def gauss_kernel_median(x, y=None, bandwidth='median', median_coef=1,
         Bandwidth, calculated with the median method.
     """
     if bandwidth == 'median':
-        computed_bandwidth = to.sqrt(_median(x, y) * median_coef)
+        computed_bandwidth = to.sqrt(_median_dist(x, y) * median_coef)
     else:
         computed_bandwidth = bandwidth
     kernel = lambda a, b=None: gauss_kernel(x=a, y=b, sigma=computed_bandwidth)
