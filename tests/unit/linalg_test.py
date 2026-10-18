@@ -4,7 +4,7 @@ import pytest
 import numpy as np
 import torch as to
 
-from kaov.linalg import distances, ordered_eigsy
+from kaov.linalg import distances, ordered_eigsy, _calculate_XXinv_and_ProjImX
 from kaov.testing import dummy_data, assert_same_eigenvectors
 
 
@@ -407,3 +407,210 @@ class Test_ordered_eigsy(object):
 
         np.testing.assert_allclose(sp1.numpy(), sp2.numpy(), rtol=0, atol=1e-12)
         assert_same_eigenvectors(ev1.numpy(), ev2.numpy(), rtol=0, atol=1e-12)
+
+
+class Test_calculate_XXinv_and_ProjImX:
+    """Test suite for _calculate_XXinv_and_ProjImX function."""
+
+    # Basic functionality tests
+    def test_output_shapes(self):
+        """Test output shapes for a rectangular matrix."""
+        X = to.tensor([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]])
+        XXinv, ProjImX = _calculate_XXinv_and_ProjImX(X)
+
+        assert XXinv.shape == (2, 2)  # n_features x n_features
+        assert ProjImX.shape == (3, 3)  # n_samples x n_samples
+
+    def test_full_rank_square_matrix(self):
+        """Test with full-rank square matrix."""
+        X = to.tensor([[1.0, 2.0], [3.0, 4.0]])
+        XXinv, ProjImX = _calculate_XXinv_and_ProjImX(X)
+
+        # For full-rank square matrix, XXinv should be inverse of X^T X
+        XX = to.matmul(X.T, X)
+        expected_XXinv = to.inverse(XX)
+        to.testing.assert_close(XXinv, expected_XXinv, atol=1e-5, rtol=1e-5)
+
+    def test_projection_is_idempotent(self):
+        """Test that projection matrix is idempotent."""
+        X = to.tensor([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]])
+        _, ProjImX = _calculate_XXinv_and_ProjImX(X)
+
+        # P @ P = P
+        result = to.matmul(ProjImX, ProjImX)
+        to.testing.assert_close(result, ProjImX, atol=1e-5, rtol=1e-5)
+
+    def test_projection_is_symmetric(self):
+        """Test that projection matrix is symmetric."""
+        X = to.tensor([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]])
+        _, ProjImX = _calculate_XXinv_and_ProjImX(X)
+
+        to.testing.assert_close(ProjImX, ProjImX.T, atol=1e-5, rtol=1e-5)
+
+    def test_projection_property(self):
+        """Test that P @ X = X."""
+        X = to.tensor([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]])
+        _, ProjImX = _calculate_XXinv_and_ProjImX(X)
+
+        result = to.matmul(ProjImX, X)
+        to.testing.assert_close(result, X, atol=1e-5, rtol=1e-5)
+
+    # Comparison with numpy
+    def test_compare_with_numpy_full_rank(self):
+        """Test against numpy for full-rank matrix."""
+        X_np = np.array([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]])
+        X = to.from_numpy(X_np)
+
+        XXinv, ProjImX = _calculate_XXinv_and_ProjImX(X)
+
+        # Compute with numpy
+        XX_np = X_np.T @ X_np
+        expected_XXinv_np = np.linalg.pinv(XX_np)
+        expected_ProjImX_np = X_np @ expected_XXinv_np @ X_np.T
+
+        np.testing.assert_allclose(
+            XXinv.numpy(), expected_XXinv_np, rtol=1e-5, atol=1e-5
+        )
+        np.testing.assert_allclose(
+            ProjImX.numpy(), expected_ProjImX_np, rtol=1e-5, atol=1e-5
+        )
+
+    def test_compare_with_numpy_rank_deficient(self):
+        """Test against numpy for rank-deficient matrix."""
+        # Rank-deficient: second column is multiple of first
+        X_np = np.array([[1.0, 2.0], [2.0, 4.0], [3.0, 6.0]])
+        X = to.from_numpy(X_np)
+
+        XXinv, ProjImX = _calculate_XXinv_and_ProjImX(X)
+
+        # Compute with numpy
+        XX_np = X_np.T @ X_np
+        expected_XXinv_np = np.linalg.pinv(XX_np)
+        expected_ProjImX_np = X_np @ expected_XXinv_np @ X_np.T
+
+        np.testing.assert_allclose(
+            XXinv.numpy(), expected_XXinv_np, rtol=1e-5, atol=1e-5
+        )
+        np.testing.assert_allclose(
+            ProjImX.numpy(), expected_ProjImX_np, rtol=1e-5, atol=1e-5
+        )
+
+    # Known value tests
+    def test_identity_matrix(self):
+        """Test with identity matrix."""
+        X = to.eye(3)
+        XXinv, ProjImX = _calculate_XXinv_and_ProjImX(X)
+
+        # X^T X = I, so XXinv = I
+        to.testing.assert_close(XXinv, to.eye(3), atol=1e-5, rtol=1e-5)
+        # P = X @ I @ X.T = I
+        to.testing.assert_close(ProjImX, to.eye(3), atol=1e-5, rtol=1e-5)
+
+    def test_single_column(self):
+        """Test with single column matrix."""
+        X = to.tensor([[1.0], [2.0], [3.0]])
+        XXinv, ProjImX = _calculate_XXinv_and_ProjImX(X)
+
+        # XX = X^T X = 1+4+9 = 14
+        # XXinv = 1/14
+        assert XXinv.shape == (1, 1)
+        assert XXinv[0, 0] == pytest.approx(1.0 / 14.0, abs=1e-5)
+
+        # ProjImX = X @ XXinv @ X.T
+        expected_Proj = (1.0 / 14.0) * to.tensor([[1.0, 2.0, 3.0],
+                                                  [2.0, 4.0, 6.0],
+                                                  [3.0, 6.0, 9.0]])
+        to.testing.assert_close(ProjImX, expected_Proj, atol=1e-5, rtol=1e-5)
+
+    def test_orthogonal_columns(self):
+        """Test with orthogonal columns."""
+        X = to.tensor([[1.0, 0.0], [0.0, 1.0], [0.0, 0.0]])
+        XXinv, ProjImX = _calculate_XXinv_and_ProjImX(X)
+
+        # X^T X = [[1, 0], [0, 1]], so XXinv = I
+        to.testing.assert_close(XXinv, to.eye(2), atol=1e-5, rtol=1e-5)
+
+        # ProjImX should project onto the xy-plane
+        expected_Proj = to.tensor([[1.0, 0.0, 0.0],
+                                   [0.0, 1.0, 0.0],
+                                   [0.0, 0.0, 0.0]])
+        to.testing.assert_close(ProjImX, expected_Proj, atol=1e-5, rtol=1e-5)
+
+    # Edge cases
+    def test_single_row(self):
+        """Test with single row matrix."""
+        X = to.tensor([[1.0, 2.0, 3.0]])
+        XXinv, ProjImX = _calculate_XXinv_and_ProjImX(X)
+
+        assert XXinv.shape == (3, 3)
+        assert ProjImX.shape == (1, 1)
+        # ProjImX should be 1 (projection onto 1D space)
+        assert ProjImX[0, 0] == pytest.approx(1.0, abs=1e-5)
+
+    def test_rank_deficient_square(self):
+        """Test with rank-deficient square matrix."""
+        X = to.tensor([[1.0, 2.0], [2.0, 4.0]])
+        XXinv, ProjImX = _calculate_XXinv_and_ProjImX(X)
+
+        # Rank is 1, so XXinv should be rank-1
+        assert to.linalg.matrix_rank(XXinv) == 1
+        assert ProjImX.shape == (2, 2)
+
+    def test_float32_dtype(self):
+        """Test with float32 dtype."""
+        X = to.tensor([[1.0, 2.0], [3.0, 4.0]], dtype=to.float32)
+        XXinv, ProjImX = _calculate_XXinv_and_ProjImX(X)
+
+        assert XXinv.dtype == to.float32
+        assert ProjImX.dtype == to.float32
+
+    def test_float64_dtype(self):
+        """Test with float64 dtype."""
+        X = to.tensor([[1.0, 2.0], [3.0, 4.0]], dtype=to.float64)
+        XXinv, ProjImX = _calculate_XXinv_and_ProjImX(X)
+
+        assert XXinv.dtype == to.float64
+        assert ProjImX.dtype == to.float64
+
+    # Random matrix tests
+    def test_random_matrix_against_numpy(self):
+        """Test random matrix against numpy computation."""
+        to.manual_seed(42)
+        X = to.randn(10, 4)
+        X_np = X.numpy()
+
+        XXinv, ProjImX = _calculate_XXinv_and_ProjImX(X)
+
+        # Compute with numpy
+        XX_np = X_np.T @ X_np
+        expected_XXinv_np = np.linalg.pinv(XX_np)
+        expected_ProjImX_np = X_np @ expected_XXinv_np @ X_np.T
+
+        np.testing.assert_allclose(
+            XXinv.numpy(), expected_XXinv_np, rtol=1e-5, atol=1e-5
+        )
+        np.testing.assert_allclose(
+            ProjImX.numpy(), expected_ProjImX_np, rtol=1e-5, atol=1e-5
+        )
+
+    def test_random_rank_deficient_against_numpy(self):
+        """Test random rank-deficient matrix against numpy."""
+        to.manual_seed(123)
+        # Create rank-deficient matrix (rank 2 out of 4 columns)
+        X_base = to.randn(10, 2)
+        X = to.cat([X_base, 2 * X_base, -X_base], dim=1)  # Rank 2
+        X_np = X.numpy()
+
+        XXinv, ProjImX = _calculate_XXinv_and_ProjImX(X)
+
+        # Compute with numpy
+        XX_np = X_np.T @ X_np
+        expected_XXinv_np = np.linalg.pinv(XX_np)
+        expected_ProjImX_np = X_np @ expected_XXinv_np @ X_np.T
+
+        np.testing.assert_allclose(
+            XXinv.numpy(), expected_XXinv_np, rtol=1e-5, atol=1e-5
+        )
+        np.testing.assert_allclose(
+            ProjImX.numpy(), expected_ProjImX_np, rtol=1e-5, atol=1e-5
+        )
