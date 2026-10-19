@@ -240,3 +240,69 @@ def _quantile_dist(
     quantile = to.quantile(dtot, q=q)
 
     return quantile
+
+
+def gauss_kernel_quantile(
+    x: to.Tensor,
+    y: to.Tensor | None = None,
+    bandwidth: str | float = 'quantile',
+    scaling_coef: float = 1,
+    return_bandwidth: bool = False,
+    q: float = 0.5,
+    exclude_zero: bool = True,
+):
+    """
+    Defines the gaussian kernel function with bandwidth set as a chosen
+    empirical quantile of the distances between pairs of observations
+    (`bandwidth='quantile'`) or with a custom bandwidth.
+
+    Parameters
+    ----------
+    x : torch.Tensor
+        2-d tensor containing the data to kernalize.
+    y : None or torch.Tensor
+        2-d tensor containing the data to kernalize. Replaced by `x` if None.
+    bandwidth : 'median' or float
+        If 'median' (default), the bandwidth is calculated with the quantile
+        method. If float, the value is assigned to the bandwidth.
+    scaling_coef : float
+        Coefficient to scale the quantile bandwidth, 1 by default.
+    return_bandwidth : bool
+        Flag to enable/disable returned bandwidth value calculated with the
+        median method. False by default.
+    q : float, optional
+        Quantile to use for bandwidth computation when `bandwidth='median'`.
+        Defaults to 0.5 (median).
+    exclude_zero : bool, optional
+        If True, only non-zero distances are used for bandwidth computation.
+        Defaults to True.
+
+    Returns
+    -------
+    kernel : callable
+        Kernel function.
+    computed_bandwidth : float or None
+        Bandwidth if `return_bandwidth=True`, calculated with the quantile
+        method, else `None`.
+
+    Examples
+    --------
+    >>> x = to.tensor([[0.0, 0.0], [1.0, 1.0], [2.0, 2.0]])
+    >>> kernel, bw = gauss_kernel_median(x, return_bandwidth=True)
+    >>> bw
+    tensor(1.4142)  # sqrt(2)
+    >>> kernel(x).shape
+    torch.Size([3, 3])
+    """
+    if bandwidth == 'quantile':
+        computed_bandwidth = to.sqrt(
+            _quantile_dist(x, y, q=q, exclude_zero=exclude_zero)
+            * scaling_coef
+        )
+    else:
+        computed_bandwidth = bandwidth
+    kernel = partial(gauss_kernel, sigma=computed_bandwidth)
+    if return_bandwidth:
+        return kernel, computed_bandwidth
+    else:
+        return kernel, None

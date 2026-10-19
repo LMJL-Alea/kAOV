@@ -3,7 +3,7 @@ import torch as to
 
 from kaov.kernel import (
     linear_kernel, gauss_kernel, _median_dist, gauss_kernel_median,
-    _quantile_dist
+    _quantile_dist, gauss_kernel_quantile
 )
 
 
@@ -936,3 +936,307 @@ class Test_quantile_dist(object):
         # Sorted: 4, 4, 9, 9, 25, 25
         # Median = (9 + 9) / 2 = 9
         to.testing.assert_close(result, to.tensor(9.0))
+
+
+class Test_gauss_kernel_quantile(object):
+    """Test suite for gauss_kernel_quantile function."""
+
+    # Output structure tests
+    def test_returns_tuple(self):
+        """Test that function returns a tuple."""
+        x = to.tensor([[0.0, 0.0], [1.0, 1.0], [2.0, 2.0]])
+        result = gauss_kernel_quantile(x)
+
+        assert isinstance(result, tuple)
+        assert len(result) == 2
+
+        result = gauss_kernel_quantile(x, return_bandwidth=True)
+
+        assert isinstance(result, tuple)
+        assert len(result) == 2
+
+    def test_returns_kernel_and_none(self):
+        """Test that function returns kernel and None by default."""
+        x = to.tensor([[0.0, 0.0], [1.0, 1.0], [2.0, 2.0]])
+        kernel, bandwidth = gauss_kernel_quantile(x)
+
+        assert callable(kernel)
+        assert bandwidth is None
+
+    def test_returns_kernel_and_bandwidth(self):
+        """Test that function returns kernel and bandwidth when requested."""
+        x = to.tensor([[0.0, 0.0], [1.0, 1.0], [2.0, 2.0]])
+        kernel, bandwidth = gauss_kernel_quantile(x, return_bandwidth=True)
+
+        assert callable(kernel)
+        assert bandwidth is not None
+        assert isinstance(bandwidth, to.Tensor)
+
+    # Bandwidth calculation tests
+    def test_quantile_bandwidth_default(self):
+        """Test default quantile bandwidth (q=0.5, median)."""
+        x = to.tensor([[0.0, 0.0], [1.0, 1.0], [2.0, 2.0]])
+        _, bandwidth = gauss_kernel_quantile(x, return_bandwidth=True)
+
+        # Non-zero distances: 2, 8, 2, 2 -> median = 2, sqrt(2) ≈ 1.414
+        to.testing.assert_close(bandwidth, to.sqrt(to.tensor(2.0)))
+
+    def test_quantile_bandwidth_with_scaling(self):
+        """Test quantile bandwidth with scaling coefficient."""
+        x = to.tensor([[0.0, 0.0], [1.0, 1.0], [2.0, 2.0]])
+        _, bandwidth = gauss_kernel_quantile(
+            x, scaling_coef=4, return_bandwidth=True
+        )
+
+        # Median distance = 2, sqrt(2 * 4) = sqrt(8) ≈ 2.828
+        to.testing.assert_close(bandwidth, to.sqrt(to.tensor(8.0)))
+
+    def test_quantile_bandwidth_q25(self):
+        """Test bandwidth with q=0.25."""
+        x = to.tensor([[0.0, 0.0], [1.0, 1.0], [2.0, 2.0]])
+        _, bandwidth = gauss_kernel_quantile(
+            x, q=0.25, return_bandwidth=True
+        )
+
+        # Non-zero distances: 2, 8, 2, 2 -> 25th percentile = 2
+        # sqrt(2) ≈ 1.414
+        to.testing.assert_close(bandwidth, to.sqrt(to.tensor(2.0)))
+
+    def test_quantile_bandwidth_q75(self):
+        """Test bandwidth with q=0.75."""
+        x = to.tensor([[0.0, 0.0], [1.0, 1.0], [2.0, 2.0]])
+        _, bandwidth = gauss_kernel_quantile(
+            x, q=0.75, return_bandwidth=True
+        )
+
+        # Non-zero distances: 2, 8, 2, 2 -> 75th percentile = 6.5
+        # sqrt(6.5) ≈ 2.55
+        to.testing.assert_close(bandwidth, to.sqrt(to.tensor(6.5)))
+
+    def test_float_bandwidth(self):
+        """Test with float bandwidth value."""
+        x = to.tensor([[0.0, 0.0], [1.0, 1.0], [2.0, 2.0]])
+        kernel, bandwidth = gauss_kernel_quantile(
+            x, bandwidth=2.0, return_bandwidth=True
+        )
+
+        assert bandwidth == 2.0
+        assert callable(kernel)
+
+    # Exclude zero parameter tests
+    def test_exclude_zero_true(self):
+        """Test with exclude_zero=True (default)."""
+        x = to.tensor([[0.0, 0.0], [0.0, 0.0], [2.0, 0.0]])
+        _, bandwidth = gauss_kernel_quantile(x, return_bandwidth=True)
+
+        # Non-zero distances: 4, 4, 4 -> median = 4, sqrt(4) = 2
+        to.testing.assert_close(bandwidth, to.tensor(2.0))
+
+    def test_exclude_zero_false(self):
+        """Test with exclude_zero=False."""
+        # Median
+        x = to.tensor([[0.0, 0.0], [0.0, 0.0], [2.0, 0.0]])
+        _, bandwidth = gauss_kernel_quantile(
+            x, exclude_zero=False, return_bandwidth=True
+        )
+
+        # All distances: 0, 0, 4, 0, 4, 0, 4, 4, 0
+        # Sorted: 0, 0, 0, 0, 0, 4, 4, 4, 4
+        # Median = 0
+        to.testing.assert_close(bandwidth, to.tensor(0.0))
+
+        # 25th percentile
+        x = to.tensor([[0.0, 0.0], [0.0, 0.0], [2.0, 0.0]])
+        _, bandwidth = gauss_kernel_quantile(
+            x, q=0.25, exclude_zero=False, return_bandwidth=True
+        )
+
+        # All distances: 0, 0, 4, 0, 4, 0, 4, 4, 0
+        # Sorted: 0, 0, 0, 0, 0, 4, 4, 4, 4
+        # 25th percentile = 0
+        to.testing.assert_close(bandwidth, to.tensor(0.0))
+
+        # 75th percentile
+        x = to.tensor([[0.0, 0.0], [0.0, 0.0], [2.0, 0.0]])
+        _, bandwidth = gauss_kernel_quantile(
+            x, q=0.75, exclude_zero=False, return_bandwidth=True
+        )
+
+        # All distances: 0, 0, 4, 0, 4, 0, 4, 4, 0
+        # Sorted: 0, 0, 0, 0, 0, 4, 4, 4, 4
+        # 75th percentile = 4
+        to.testing.assert_close(bandwidth, to.sqrt(to.tensor(4.0)))
+
+    # Kernel behavior tests
+    def test_kernel_with_quantile_bandwidth(self):
+        """Test kernel output with quantile bandwidth."""
+        x = to.tensor([[0.0, 0.0], [1.0, 1.0], [2.0, 2.0]])
+        # Median distance = 2, bandwidth = sqrt(2) ≈ 1.414
+        kernel, _ = gauss_kernel_quantile(x)
+        result = kernel(x)
+
+        assert result.shape == (3, 3)
+
+        # With sigma=sqrt(2), k(0,1) = exp(-2/(2*2)) = exp(-0.5)
+        expected_off_diag = to.exp(to.tensor(-0.5))
+        expected = to.tensor([
+            [1.0, expected_off_diag, to.exp(to.tensor(-2.0))],
+            [expected_off_diag, 1.0, expected_off_diag],
+            [to.exp(to.tensor(-2.0)), expected_off_diag, 1.0]
+        ])
+        to.testing.assert_close(result, expected)
+
+    def test_kernel_with_float_bandwidth(self):
+        """Test kernel output with float bandwidth."""
+        x = to.tensor([[0.0, 0.0], [1.0, 1.0], [2.0, 2.0]])
+        kernel, _ = gauss_kernel_quantile(x, bandwidth=1.0)
+        result = kernel(x)
+
+        assert result.shape == (3, 3)
+
+        expected = to.tensor([
+            [1.0, to.exp(to.tensor(-1.0)), to.exp(to.tensor(-4.0))],
+            [to.exp(to.tensor(-1.0)), 1.0, to.exp(to.tensor(-1.0))],
+            [to.exp(to.tensor(-4.0)), to.exp(to.tensor(-1.0)), 1.0]
+        ])
+        to.testing.assert_close(result, expected)
+
+    def test_kernel_with_y_argument(self):
+        """Test kernel with y argument."""
+        x = to.tensor([[0.0, 0.0], [1.0, 1.0]])
+        y = to.tensor([[0.0, 0.0], [1.0, 1.0], [2.0, 2.0]])
+
+        kernel, _ = gauss_kernel_quantile(x, y)
+        result = kernel(x, y)
+
+        assert result.shape == (2, 3)
+
+    def test_kernel_equivalence_with_gauss_kernel(self):
+        """Test that kernel matches gauss_kernel with same sigma."""
+        x = to.tensor([[0.0, 0.0], [1.0, 1.0], [2.0, 2.0]])
+        kernel, bandwidth = gauss_kernel_quantile(
+            x, return_bandwidth=True
+        )
+
+        result = kernel(x)
+        expected = gauss_kernel(x, sigma=bandwidth)
+        to.testing.assert_close(result, expected)
+
+    # Edge cases
+    def test_single_point(self):
+        """Test with single point."""
+        x = to.tensor([[1.0, 2.0]])
+
+        with pytest.warns(
+            UserWarning, match="All distances between observations are zero"
+        ):
+            kernel, bandwidth = gauss_kernel_quantile(
+                x, return_bandwidth=True
+            )
+
+        assert callable(kernel)
+        assert bandwidth == 0.0  # sqrt(0) = 0
+
+    def test_identical_points(self):
+        """Test with identical points."""
+        x = to.tensor([[1.0, 2.0], [1.0, 2.0]])
+
+        with pytest.warns(
+            UserWarning, match="All distances between observations are zero"
+        ):
+            kernel, bandwidth = gauss_kernel_quantile(
+                x, return_bandwidth=True
+            )
+
+        # All distances are 0, quantile = 0, sqrt(0) = 0
+        assert bandwidth == 0.0
+
+    def test_identical_points_exclude_zero_false(self):
+        """Test identical points with exclude_zero=False."""
+        x = to.tensor([[1.0, 2.0], [1.0, 2.0]])
+        kernel, bandwidth = gauss_kernel_quantile(
+            x, exclude_zero=False, return_bandwidth=True
+        )
+
+        # All distances are 0, quantile = 0, sqrt(0) = 0
+        assert bandwidth == 0.0
+
+    # Dtype tests
+    def test_float32_dtype(self):
+        """Test with float32 dtype."""
+        x = to.tensor([[0.0, 0.0], [3.0, 4.0]], dtype=to.float32)
+        kernel, bandwidth = gauss_kernel_quantile(
+            x, return_bandwidth=True
+        )
+
+        assert bandwidth.dtype == to.float32
+
+        # Distance = 25, quantile = 25, sqrt(25) = 5
+        to.testing.assert_close(bandwidth, to.tensor(5.0, dtype=to.float32))
+
+        # Verify kernel values
+        result = kernel(x)
+        assert result.dtype == to.float32
+
+        # With sigma=5, k(0,1) = exp(-25/(2*25)) = exp(-0.5)
+        expected_off_diag = to.exp(to.tensor(-0.5))
+        expected = to.tensor(
+            [[1.0, expected_off_diag],
+             [expected_off_diag, 1.0]],
+            dtype=to.float32
+        )
+        to.testing.assert_close(result, expected)
+
+    def test_float64_dtype(self):
+        """Test with float64 dtype."""
+        x = to.tensor([[0.0, 0.0], [3.0, 4.0]], dtype=to.float64)
+        kernel, bandwidth = gauss_kernel_quantile(
+            x, return_bandwidth=True
+        )
+
+        assert bandwidth.dtype == to.float64
+
+        # Distance = 25, quantile = 25, sqrt(25) = 5
+        to.testing.assert_close(bandwidth, to.tensor(5.0, dtype=to.float64))
+
+        # Verify kernel values
+        result = kernel(x)
+        assert result.dtype == to.float64
+
+        # With sigma=5, k(0,1) = exp(-25/(2*25)) = exp(-0.5)
+        expected_off_diag = to.exp(to.tensor(-0.5))
+        expected = to.tensor(
+            [[1.0, expected_off_diag],
+             [expected_off_diag, 1.0]],
+            dtype=to.float64
+        )
+        to.testing.assert_close(result, expected)
+
+    # Known value tests
+    def test_known_values(self):
+        """Test with known values."""
+        x = to.tensor([[0.0, 0.0], [3.0, 4.0]])
+        kernel, bandwidth = gauss_kernel_quantile(
+            x, return_bandwidth=True
+        )
+
+        # Distance = 25, quantile = 25, sqrt(25) = 5
+        assert bandwidth == 5.0
+
+        # With sigma=5, k(0,1) = exp(-25/(2*25)) = exp(-0.5)
+        result = kernel(x)
+        expected_off_diag = to.exp(to.tensor(-0.5))
+        expected = to.tensor([[1.0, expected_off_diag],
+                              [expected_off_diag, 1.0]])
+        to.testing.assert_close(result, expected)
+
+    def test_known_values_q75(self):
+        """Test with known values for q=0.75."""
+        x = to.tensor([[0.0, 0.0], [1.0, 1.0], [2.0, 2.0]])
+        kernel, bandwidth = gauss_kernel_quantile(
+            x, q=0.75, return_bandwidth=True
+        )
+
+        # Non-zero distances: 2, 8, 2, 2 -> 75th percentile = 6.5
+        # sqrt(6.5) ≈ 2.55
+        to.testing.assert_close(bandwidth, to.sqrt(to.tensor(6.5)))
