@@ -847,8 +847,17 @@ class Test_quantile_dist(object):
 
         # All distances: 0, 0, 4, 0, 4, 0, 4, 4, 0
         # Sorted: 0, 0, 0, 0, 0, 4, 4, 4, 4
-        # 25th percentile
+        # 25th percentile = 0
         to.testing.assert_close(result, to.tensor(0.0))
+
+        # 75th percentile
+        x = to.tensor([[0.0, 0.0], [0.0, 0.0], [2.0, 0.0]])
+        result = _quantile_dist(x, q=0.75, exclude_zero=False)
+
+        # All distances: 0, 0, 4, 0, 4, 0, 4, 4, 0
+        # Sorted: 0, 0, 0, 0, 0, 4, 4, 4, 4
+        # 75th percentile = 4
+        to.testing.assert_close(result, to.tensor(4.0))
 
     # All-zero distance tests
     def test_all_zero_distances_warns(self):
