@@ -265,15 +265,15 @@ def gauss_kernel_quantile(
     y : None or torch.Tensor
         2-d tensor containing the data to kernalize. Replaced by `x` if None.
     bandwidth : 'median' or float
-        If 'median' (default), the bandwidth is calculated with the quantile
+        If 'quantile' (default), the bandwidth is calculated with the quantile
         method. If float, the value is assigned to the bandwidth.
     scaling_coef : float
         Coefficient to scale the quantile bandwidth, 1 by default.
     return_bandwidth : bool
         Flag to enable/disable returned bandwidth value calculated with the
-        median method. False by default.
+        quantile method. False by default.
     q : float, optional
-        Quantile to use for bandwidth computation when `bandwidth='median'`.
+        Quantile level to use for bandwidth computation when `bandwidth='quantile'`.
         Defaults to 0.5 (median).
     exclude_zero : bool, optional
         If True, only non-zero distances are used for bandwidth computation.
