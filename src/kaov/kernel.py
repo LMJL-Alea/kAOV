@@ -83,8 +83,9 @@ def _median_dist(x: to.Tensor, y: to.Tensor | None = None):
     Returns
     -------
     float
-        The median of the pairwise squared distances. If the median is
-        zero, the mean is returned instead (with a warning).
+        The median of the pairwise squared distances as a scalar
+        torch tensor. If the median is zero, the mean is returned instead
+        (with a warning).
 
     Warns
     -----
@@ -130,8 +131,9 @@ def gauss_kernel_median(
     return_bandwidth: bool = False
 ):
     """
-    Computes the gaussian kernel with bandwidth set as the median of the
-    distances between pairs of observations (`bandwidth='median'`).
+    Defines the gaussian kernel function with bandwidth set as the median of
+    the distances between pairs of observations (`bandwidth='median'`) or
+    with a custom bandwidth.
 
     Parameters
     ----------
