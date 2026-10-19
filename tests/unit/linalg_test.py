@@ -8,7 +8,7 @@ from kaov.linalg import distances, ordered_eigsy, _calculate_XXinv_and_ProjImX
 from kaov.testing import dummy_data, assert_same_eigenvectors
 
 
-class Test_distances(object):
+class Test_distances:
     """Test suite for distances function."""
 
     # Output
@@ -146,7 +146,7 @@ class Test_distances(object):
         to.testing.assert_close(result, expected)
 
 
-class Test_ordered_eigsy(object):
+class Test_ordered_eigsy:
     """Test suite for ordered_eigsy function."""
 
     @pytest.fixture

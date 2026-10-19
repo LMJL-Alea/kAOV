@@ -11,7 +11,7 @@ from kaov.testing import (
 )
 
 
-class Test_dummy_data(object):
+class Test_dummy_data:
     """Test suite for dummy_data function."""
 
     def test_default_parameters(self):
@@ -166,7 +166,7 @@ class Test_dummy_data(object):
         assert abs(counts["c2"] - 50) <= 10
 
 
-class Test_assert_equal_data_obj(object):
+class Test_assert_equal_data_obj:
     """Test suite for assert_equal_data_obj function."""
 
     @pytest.fixture
@@ -395,7 +395,7 @@ class Test_assert_equal_aov_obj:
             assert_equal_aov_obj(aov_object, aov_object_different_factor)
 
 
-class Test_assert_vec_equal_abs_one(object):
+class Test_assert_vec_equal_abs_one:
     """Test suite for assert_vec_equal_abs_one function."""
 
     # Passing tests
@@ -516,7 +516,7 @@ class Test_assert_vec_equal_abs_one(object):
         assert_vec_equal_abs_one(vec)
 
 
-class Test_assert_same_eigenvectors(object):
+class Test_assert_same_eigenvectors:
     """Test suite for assert_same_eigenvectors function."""
 
     @pytest.fixture

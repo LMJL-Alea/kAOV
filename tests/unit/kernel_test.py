@@ -153,7 +153,7 @@ class Test_linear_kernel:
         assert result[0, 0] == 5.0
 
 
-class Test_gauss_kernel(object):
+class Test_gauss_kernel:
     """Test suite for gauss_kernel function."""
 
     # Output
@@ -346,7 +346,7 @@ class Test_gauss_kernel(object):
         assert result.dtype == to.float64
 
 
-class Test_median_dist(object):
+class Test_median_dist:
     """Test suite for _median_dist function."""
 
     # Basic functionality tests
@@ -532,7 +532,7 @@ class Test_median_dist(object):
         assert result.item() == 4.0
 
 
-class Test_gauss_kernel_median(object):
+class Test_gauss_kernel_median:
     """Test suite for gauss_kernel_median function."""
 
     # Output
@@ -744,7 +744,7 @@ class Test_gauss_kernel_median(object):
         to.testing.assert_close(result, expected)
 
 
-class Test_quantile_dist(object):
+class Test_quantile_dist:
     """Test suite for _quantile_dist function."""
 
     # Output
@@ -947,7 +947,7 @@ class Test_quantile_dist(object):
         to.testing.assert_close(result, to.tensor(9.0))
 
 
-class Test_gauss_kernel_quantile(object):
+class Test_gauss_kernel_quantile:
     """Test suite for gauss_kernel_quantile function."""
 
     # Output structure tests

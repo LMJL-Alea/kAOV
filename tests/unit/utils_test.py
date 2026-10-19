@@ -6,7 +6,7 @@ import torch as to
 from kaov.utils import convert_to_torch
 
 
-class Test_convert_to_torch(object):
+class Test_convert_to_torch:
     """Test suite for convert_to_torch function."""
 
     # Test with NumPy arrays
