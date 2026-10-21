@@ -403,18 +403,18 @@ class AOV:
         Returns
         -------
         aov_obj : instance of AOV
-        
+
         Examples
         --------
         Importing data:
-            
+
         >>> import pandas as pd
         >>> from kaov import AOV
         >>> url = "https://raw.githubusercontent.com/LMJL-Alea/kAOV/refs/heads/main/Data/reversion_kAOV.csv"
         >>> data = pd.read_csv(url, index_col=0)
 
         Regress the expression of three genes against the medium factor using formula:
-            
+
         >>> kfit = AOV.from_formula('AACS + ACSL6 + ACSS1 ~ C(Medium, OneHot)', data=data)
         >>> print(kfit.data.exog_names)
         Index(['Medium[0H]', 'Medium[24H]', 'Medium[48HDIFF]', 'Medium[48HREV]'], dtype='object')
@@ -449,7 +449,7 @@ class AOV:
             aov_obj._factor_info = {_name.replace(s1, '').replace(s2, ''): _slice
                                     for _name, _slice in aov_obj._factor_info.items()}
         return aov_obj
-    
+
     def __str__(self):
         s = "Kernel linear model"
         s + f" with {self.data.nobs} observations and {self.data.nvar} features."
@@ -458,7 +458,7 @@ class AOV:
             s += "\nNystrom approximation with"
             s += f" {self.data_nystrom.nobs} landmarks."
         return s
-        
+
     def compute_diagnostics(self, n_trunc=100, n_anchors=None):
         """
         Calculates diagnostics associated with the model and saves them in the
@@ -470,7 +470,7 @@ class AOV:
         the first eigenfunctions of the residual covariance operator.
         - Residuals: projections of the residuals on the first
         eigenfunctions of the residual covariance operator.
-    
+
         Parameters
         ----------
         n_trunc : int, optional
@@ -478,7 +478,7 @@ class AOV:
         n_anchors : int, optional
             Number of anchors used in the Nystrom method. If None, the value is
             set at `n_trunc`.
-    
+
         """
         data = self.data_nystrom if self.data_nystrom is not None else self.data
         K = self.kernel(data.endog)
@@ -506,7 +506,7 @@ class AOV:
                                'Residuals': residuals}
 
     def plot_diagnostics(self, trunc=100, diagnostic='residuals', n_trunc=100,
-                         n_anchors=None, colormap='viridis', alpha=.75, 
+                         n_anchors=None, colormap='viridis', alpha=.75,
                          legend_fontsize=12, font_family='serif', figsize=None):
         """
         Plots diagnostics associated with the model. The graph contains sublots
@@ -616,10 +616,10 @@ class AOV:
         ----------
         hypotheses : str or None or list[tuple]
             Hypotheses to be tested.
-            - if str: either 'pairwise' (default for OneHot) or 'one-vs-all'. 
+            - if str: either 'pairwise' (default for OneHot) or 'one-vs-all'.
             Recommended options in combination with OneHot encoding.
-            If 'pairwise', the levels of a factor are compared one to another 
-            in the pairwise way. If 'one-vs-all', each level is compared to 
+            If 'pairwise', the levels of a factor are compared one to another
+            in the pairwise way. If 'one-vs-all', each level is compared to
             the factor mean.
             - if None: produces an identity contrast matrix for each factor.
             Intended for other coding schemes (e.g. Treatment, Sum, etc).
@@ -658,7 +658,7 @@ class AOV:
                 warnings.warn("'pairwise' and 'one-vs-all' options for `hypotheses` "
                               "are intended for OneHot encoding. Otherwise, "
                               "the test might be difficult to interpret.")
-            hypotheses_type = hypotheses 
+            hypotheses_type = hypotheses
             hypotheses = []
             if not hasattr(self, '_factor_info'):
                 warnings.warn("The absence of `_factor_info` attribute was "
@@ -876,8 +876,8 @@ class AOV:
             observations, and columns to truncations of the residual covariance
             operator.
         cook_pvalues : pandas.DataFrame
-            Contains p-values associated with the influence measure, with rows 
-            corresponding to observations, and columns to truncations of the 
+            Contains p-values associated with the influence measure, with rows
+            corresponding to observations, and columns to truncations of the
             residual covariance operator.
 
         """
@@ -889,7 +889,7 @@ class AOV:
         LL = matmul(L, L.T)
         L_inv = matmul(L.T, inv(LL))
         XX = matmul(self.data.exog.T, self.data.exog)
-        hii_star = diag(multi_dot([self.data.exog, self.data._XXinv, L_inv, L, XX, L_inv, L, 
+        hii_star = diag(multi_dot([self.data.exog, self.data._XXinv, L_inv, L, XX, L_inv, L,
                                    self.data._XXinv, self.data.exog.T]))
         C_i = hii_star * (self.data.nobs - L.shape[0]) / (L.shape[0] * one_minus_hii)
         K_T = self._compute_K_T(n_trunc=n_trunc)
@@ -900,7 +900,7 @@ class AOV:
             cook_traces = diag(multi_dot([self.data._ProjImXorthogonal, K_T[:t].T,
                                           K_T[:t], self.data._ProjImXorthogonal]))
             cook_distances_norm = (cook_traces * coef_D).numpy() / np.array(C_i)
-            cook_distances[t] = (cook_distances_norm if normalize else 
+            cook_distances[t] = (cook_distances_norm if normalize else
                                  (cook_traces * coef_D).numpy())
             # P-values:
             a = t / 2
@@ -955,7 +955,7 @@ class AOV:
         ----------
         hypotheses : str or None or list[tuple]
             Hypotheses to be tested.
-            - if str: either 'pairwise' (default for OneHot) or 'one-vs-all'. 
+            - if str: either 'pairwise' (default for OneHot) or 'one-vs-all'.
             Recommended options in combination with OneHot encoding.
             - if None: produces an identity contrast matrix for each factor.
             Intended for other coding schemes (e.g. Treatment, Sum, etc).
@@ -1013,32 +1013,32 @@ class AOV:
             Cook's distances will be computed. Set to True to avoid computing
             them if they are not needed, in order to reduce computation time.
         norm_cook : bool, optional
-            If True (default), the Cook's distances are normalized with 
+            If True (default), the Cook's distances are normalized with
             respect to the design and contrasts.
 
         Returns
         -------
         KernelAOVResults object
            See the documentation for KernelAOVResults.
-           
+
         Examples
         --------
         Importing data and create an intsance of AOV:
-            
+
         >>> import pandas as pd
         >>> from kaov import AOV
         >>> url = "https://raw.githubusercontent.com/LMJL-Alea/kAOV/refs/heads/main/Data/reversion_kAOV.csv"
-        >>> data = pd.read_csv(url, index_col=0)  
+        >>> data = pd.read_csv(url, index_col=0)
         >>> kfit = AOV.from_formula('AACS + ACSL6 + ACSS1 ~ C(Medium, OneHot)', data=data)
-        
+
         Test for factor effects:
-        
+
         >>> res = kfit.test()
         >>> print(res)
         Kernel Analysis of Variance (trunc. 1):
         ====================================
         ------------------------------------
-         Factor test | factor   stat   pval 
+         Factor test | factor   stat   pval
         ------------------------------------
                      | Medium 34.0842 0.0000
         ====================================
@@ -1143,9 +1143,9 @@ class AOV:
                 results[name]['pval'] = corrected_pvals_df[name]
         hypothesis_type = (hypotheses if hypotheses is None or type(hypotheses) == str
                            else 'custom')
-        return KernelAOVResults(hyps, results, projections, 
+        return KernelAOVResults(hyps, results, projections,
                                 cook_distances, cook_pvalues,
-                                hypothesis_type=hypothesis_type, 
+                                hypothesis_type=hypothesis_type,
                                 by_level=by_level, factor_info=self._factor_info)
 
 
@@ -1180,15 +1180,15 @@ class KernelAOVResults():
         residual covariance operator.
     cook_pvalues : dict
         A dictionary with keys corresponding to hypothesis names, and values
-        to instances of pandas.DataFrame with the p-values associated with the 
-        influence measures obtained with `AOV.compute_cook_distances`. 
-        In each data frame, rows correspond to observations, and columns to 
+        to instances of pandas.DataFrame with the p-values associated with the
+        influence measures obtained with `AOV.compute_cook_distances`.
+        In each data frame, rows correspond to observations, and columns to
         truncations of the residual covariance operator.
     hypothesis_type : str or None
         Types of hypotheses that were tested. If not None, expected options
-        are 'pairwise', 'one-vs-all' and 'custom'. 
+        are 'pairwise', 'one-vs-all' and 'custom'.
     by_level : bool, optional
-        False if global (factor-wise) tests were perfromed, True if tests by 
+        False if global (factor-wise) tests were perfromed, True if tests by
         level or by a pair of levels were perfromed.
     factor_info : dict
         _factor_info attribute of the AOV class.
@@ -1212,7 +1212,7 @@ class KernelAOVResults():
 
     """
 
-    def __init__(self, hypotheses, stats, projections, cook_distances, 
+    def __init__(self, hypotheses, stats, projections, cook_distances,
                  cook_pvalues, hypothesis_type, by_level, factor_info):
         self.hypotheses = hypotheses
         self.stats = stats
@@ -1222,10 +1222,10 @@ class KernelAOVResults():
         self.hypothesis_type = hypothesis_type
         self.by_level = by_level
         self._factor_info = factor_info
-        
+
     def summary(self, trunc, factor=None):
         """
-        Creates a pandas.DataFrame or a distionary with a summary of the test 
+        Creates a pandas.DataFrame or a distionary with a summary of the test
         for a given truncation and factor (in the by-level case).
 
         Parameters
@@ -1233,16 +1233,16 @@ class KernelAOVResults():
         trunc : int
             Truncation for which to return the test results.
         factor : str or None
-            None by default, in which case the results of tests for each factor 
-            are returned. If the factor is specified, returns the results of 
-            tests on comparisons related with the chosen factor. 
+            None by default, in which case the results of tests for each factor
+            are returned. If the factor is specified, returns the results of
+            tests on comparisons related with the chosen factor.
 
         Returns
         -------
         sum_df : pandas.DataFrame or pandas.Series or dict
-            A data frame with the summary of test results. If not by_level and 
+            A data frame with the summary of test results. If not by_level and
             factor is specified, returns a row of this data frame corresponding
-            to the chosen factor. If by_level and factor is not specified, 
+            to the chosen factor. If by_level and factor is not specified,
             returns a dictionary with data frames for each factor.
 
         """
@@ -1254,7 +1254,7 @@ class KernelAOVResults():
                 summ['pval'] = self.stats[factor].loc[trunc, 'pval']
             else:
                 summ = pd.DataFrame(columns=['factor', 'stat', 'pval'],
-                                      index=np.arange(1, len(self.stats) + 1), 
+                                      index=np.arange(1, len(self.stats) + 1),
                                       dtype=object)
                 for i, (hyp, stat) in enumerate(self.stats.items()):
                     summ.loc[i + 1, 'factor'] = hyp
@@ -1274,7 +1274,7 @@ class KernelAOVResults():
                     factor_cols = [f'factor_{f + 1}_1' for f in range(nb_factors)]
                     factor_cols.extend([f'factor_{f + 1}_2' for f in range(nb_factors)])
                 sum_df = pd.DataFrame(columns=factor_cols + ['stat', 'pval'],
-                                      index=np.arange(1, len(self.stats) + 1), 
+                                      index=np.arange(1, len(self.stats) + 1),
                                       dtype=object)
                 for i, (hyp, stat) in enumerate(self.stats.items()):
                     is_factor_hyp = ((nb_factors == 1 and fct in hyp and ':' not in hyp)
@@ -1301,10 +1301,10 @@ class KernelAOVResults():
                 for key in empty_fct:
                     summ.pop(key)
         return summ
-    
+
     def _summary_obj(self):
         """
-        Creates a summary object to display a summary of the test based on the 
+        Creates a summary object to display a summary of the test based on the
         `summary` method.
 
         Returns
@@ -1423,12 +1423,12 @@ class KernelAOVResults():
                      fontsize=25, y=1.05)
         plt.draw()
         return fig, axs
-    
-    def plot_mean_embedding_projections(self, comp1=1, comp2=2, tests=None, 
+
+    def plot_mean_embedding_projections(self, comp1=1, comp2=2, tests=None,
                                         figsize=None, ylim=None, xlim=None,
-                                        alpha=1, s=50, marker='o', 
+                                        alpha=1, s=50, marker='o',
                                         colors=None, colormap='viridis',
-                                        font_family='serif', legend=True, 
+                                        font_family='serif', legend=True,
                                         legend_fontsize=15, figtitle=None):
         """
         Plots projections of mean embeddings of relevat groups on the chosen
@@ -1438,10 +1438,10 @@ class KernelAOVResults():
         Parameters
         ----------
         comp1 : int, optional
-            Component x of the plot, i.e. the mean embeddings are projected on the 
+            Component x of the plot, i.e. the mean embeddings are projected on the
             comp1-th eigenfunction.
         comp2 : int, optional
-            Component y of the plot, i.e. the mean embeddings are projected on the 
+            Component y of the plot, i.e. the mean embeddings are projected on the
             comp2-th eigenfunction.
         tests : list of strings or None
             List containing names of tests to plot, out of all the tests in
@@ -1455,21 +1455,21 @@ class KernelAOVResults():
            The default is 1.
         s : int or dict
             Marker sizes of the mean embedding projections. The default is 50.
-            If int, same sizes for all mean embeddings. To pass different 
-            values for different tests and levels, pass a dictionary with keys 
-            corresponding to test names, and values that are dictionaries with 
-            keys corresponding to the levels of the test and values that are 
+            If int, same sizes for all mean embeddings. To pass different
+            values for different tests and levels, pass a dictionary with keys
+            corresponding to test names, and values that are dictionaries with
+            keys corresponding to the levels of the test and values that are
             marker size integers.
         marker : str or dict
-            Marker styles of the mean embedding projections. The default is 'o'. 
-            If string, same marker for all mean embeddings. To pass different 
-            values for different tests and levels, pass a dictionary with keys 
-            corresponding to test names, and values that are dictionaries with 
-            keys corresponding to the levels of the test and values that are 
+            Marker styles of the mean embedding projections. The default is 'o'.
+            If string, same marker for all mean embeddings. To pass different
+            values for different tests and levels, pass a dictionary with keys
+            corresponding to test names, and values that are dictionaries with
+            keys corresponding to the levels of the test and values that are
             marker style strings.
         colors : None or dict
             Colors of the mean embedding projections. If None (default), colors
-            are chosen from the specified colormap. To customize, pass a 
+            are chosen from the specified colormap. To customize, pass a
             dictionary with keys corresponding to test names, and values that
             are dictionaries with keys corresponding to the levels of the test
             and values that are colors.
@@ -1502,7 +1502,7 @@ class KernelAOVResults():
         rc('font', **{'family': font_family})
 
         figsize = figsize if figsize is not None else (8 * nb_tests, 6)
-        fig, axs = plt.subplots(ncols=nb_tests, figsize=figsize, 
+        fig, axs = plt.subplots(ncols=nb_tests, figsize=figsize,
                                 sharex=True, sharey=True)
         for j, test in enumerate(tests):
             ax = axs if nb_tests == 1 else axs[j]
@@ -1543,8 +1543,8 @@ class KernelAOVResults():
                     lvl_proj_1 = proj_j[proj_j[test] == test_lvl][t1_j]
                     lvl_proj_2 = proj_j[proj_j[test] == test_lvl][t2_j]
                 try:
-                    ax.scatter(lvl_proj_1.mean(), lvl_proj_2.mean(), alpha=alpha, 
-                               linewidths=3, color=color[test_lvl], label=test_lvl, 
+                    ax.scatter(lvl_proj_1.mean(), lvl_proj_2.mean(), alpha=alpha,
+                               linewidths=3, color=color[test_lvl], label=test_lvl,
                                s=size[test_lvl], marker=markers[test_lvl])
                 except ValueError:
                     pass
@@ -1565,7 +1565,7 @@ class KernelAOVResults():
 
     def plot_influence(self, trunc=1, comp=1, tests=None,
                        marker='o', colors=None, colormap='viridis',
-                       font_family='serif', legend=True, alpha=.5, 
+                       font_family='serif', legend=True, alpha=.5,
                        legend_fontsize=12, figsize=None):
         """
         Plots influences (Cook's distances) of the embeddings, associated with
@@ -1579,22 +1579,22 @@ class KernelAOVResults():
             Truncation of the resdual covariance operator used for the Cook's
             distance calculation.
         comp : int, optional
-            Component of the projections, i.e. the embeddings are projected on 
+            Component of the projections, i.e. the embeddings are projected on
             the comp-th eigenfunction.
         tests : list of strings
             List containing a list of tests to plot, out of all the tests in
             the KernelAOVResults object (particularly useful with the by_level
             testing option).
         marker : str or dict
-            Marker styles of the embedding projections. The default is 'o'. 
-            If string, same marker for all mean embeddings. To pass different 
-            values for different tests and levels, pass a dictionary with keys 
-            corresponding to test names, and values that are dictionaries with 
-            keys corresponding to the levels of the test and values that are 
+            Marker styles of the embedding projections. The default is 'o'.
+            If string, same marker for all mean embeddings. To pass different
+            values for different tests and levels, pass a dictionary with keys
+            corresponding to test names, and values that are dictionaries with
+            keys corresponding to the levels of the test and values that are
             marker style strings.
         colors : None or dict
             Colors of the mean embedding projections. If None (default), colors
-            are chosen from the specified colormap. To customize, pass a 
+            are chosen from the specified colormap. To customize, pass a
             dictionary with keys corresponding to test names, and values that
             are dictionaries with keys corresponding to the levels of the test
             and values that are colors.
@@ -1634,7 +1634,7 @@ class KernelAOVResults():
             ax = axs if nb_tests == 1 else axs[j]
             t1 = min(trunc, len(self.stats[test].index))
             if t1 != trunc:
-                warnings.warn(f'In {test}: trunc={t1} will be plotted, since {trunc} ' + 
+                warnings.warn(f'In {test}: trunc={t1} will be plotted, since {trunc} ' +
                               'is larger than the maximal number of truncations.')
             t2 = min(comp, len(self.projections[test].columns) - 1)
             if t2 != comp:
@@ -1664,7 +1664,7 @@ class KernelAOVResults():
                 else:
                     lvl_cook = cook_j[cook_j[test] == test_lvl][t1]
                     lvl_proj = proj_j[proj_j[test] == test_lvl][t2]
-                ax.scatter(lvl_proj, lvl_cook, color=color[test_lvl], 
+                ax.scatter(lvl_proj, lvl_cook, color=color[test_lvl],
                            marker=markers[test_lvl], alpha=alpha, label=test_lvl)
             if legend and not no_lvl_info:
                 ax.legend(bbox_to_anchor=(1.01, 0.5), loc='center left',
@@ -1679,26 +1679,26 @@ class KernelAOVResults():
     def get_projections(self, n_comp=None, factor=None, hypothesis=None):
         """
         Creates a pandas.DataFrame with the discriminant axis projections
-        associated with the test for a given number of components, factor 
+        associated with the test for a given number of components, factor
         (for all tests of type 'pairwise' and 'one-vs-all') and
         hypothesis (in the by-level cases and for user-specified tests).
 
         Parameters
         ----------
         n_comp : int or None
-            Number of discriminant axis components for which to return the 
-            results. If None (default), projections on all available components 
+            Number of discriminant axis components for which to return the
+            results. If None (default), projections on all available components
             are returned.
         factor : str or None
             None by default (acceptable for user-specified tests) only. A factor
             has to be specified in all other cases, then returns the results of
-            tests on comparisons related with the chosen factor. Factor names 
+            tests on comparisons related with the chosen factor. Factor names
             are keys of the `_factor_info` attribute of the AOV class.
         hypothesis : str or None
             None by default, which is acceptable if the test is global or of type
-            'one-vs-all'. In the by-level pairwise or custom test cases a 
-            hypothesis has to be specified. The list of possible hypothesis 
-            names is accessible through the `hypotheses` attribute of the 
+            'one-vs-all'. In the by-level pairwise or custom test cases a
+            hypothesis has to be specified. The list of possible hypothesis
+            names is accessible through the `hypotheses` attribute of the
             KernelAOVResults class (first element of each tuple).
 
         Returns
@@ -1716,7 +1716,7 @@ class KernelAOVResults():
             nb_factors = factor.count(':') + 1
             factor_cols = [f'factor_{f + 1}' for f in range(nb_factors)]
             if not self.by_level:
-                t_cols = self.projections[factor].columns[:-1] 
+                t_cols = self.projections[factor].columns[:-1]
                 if n_comp is not None:
                           t_cols = t_cols[:n_comp]
                 proj = self.projections[factor]
@@ -1731,7 +1731,7 @@ class KernelAOVResults():
                 # Only one direction in the by-level case:
                 t_cols = [1, ]
                 sum_df = pd.DataFrame(columns=factor_cols + [f'proj_{i}' for i in t_cols],
-                                      index=list(self.projections.values())[0].index, 
+                                      index=list(self.projections.values())[0].index,
                                       dtype=object)
                 for i, (hyp, _) in enumerate(self.hypotheses):
                     is_factor_hyp = ((nb_factors == 1 and factor in hyp and ':' not in hyp)
@@ -1754,7 +1754,7 @@ class KernelAOVResults():
                     proj = self.projections[hypothesis]
                     where_hyp = proj[hypothesis] != 'NA'
                     sum_df = pd.DataFrame(columns=factor_cols + [f'proj_{i}' for i in t_cols],
-                                          index=proj.index, 
+                                          index=proj.index,
                                           dtype=object)
                     for i in t_cols:
                         sum_df.loc[where_hyp, f'proj_{i}'] = proj.loc[where_hyp, i]
@@ -1780,29 +1780,29 @@ class KernelAOVResults():
                           t_cols = t_cols[:n_comp]
             proj = self.projections[hypothesis]
             sum_df = pd.DataFrame(columns=[f'proj_{i}' for i in t_cols],
-                                  index=proj.index, 
+                                  index=proj.index,
                                   dtype=object)
             for i in t_cols:
                 sum_df.loc[:, f'proj_{i}'] = proj.loc[:, i]
         sum_df.dropna(axis=1, how='all', inplace=True)
         return sum_df
-    
+
     def get_cook(self, n_trunc=None, factor=None, hypothesis=None):
         """
         Creates a pandas.DataFrame with Cook's distances and their
-        p-values associated with the test for given truncations, 
+        p-values associated with the test for given truncations,
         factor (for all tests of type 'pairwise' and 'one-vs-all') and
         hypothesis (in the by-level cases and for user-specified tests).
 
         Parameters
         ----------
         n_trunc : int or None
-            Number of truncations for which to return the results. If None 
+            Number of truncations for which to return the results. If None
             (default), Cook's distances are returned for all available truncations.
         factor : str or None
             None by default (acceptable for user-specified tests) only. A factor
             has to be specified in all other cases, then returns the results of
-            tests on comparisons related with the chosen factor. Factor names are 
+            tests on comparisons related with the chosen factor. Factor names are
             keys of the `_factor_info` attribute of the AOV class.
         hypothesis : str or None
             None by default, which is acceptable if the test is global or of type
@@ -1846,7 +1846,7 @@ class KernelAOVResults():
                           t_cols = t_cols[:n_trunc]
                 sum_df = pd.DataFrame(columns=(factor_cols + [f'cook_{i}' for i in t_cols]
                                                + [f'cook_pval_{i}' for i in t_cols]),
-                                      index=list(self.cook_distances.values())[0].index, 
+                                      index=list(self.cook_distances.values())[0].index,
                                       dtype=object)
                 for i, (hyp, _) in enumerate(self.hypotheses):
                     is_factor_hyp = ((nb_factors == 1 and factor in hyp and ':' not in hyp)
@@ -1875,7 +1875,7 @@ class KernelAOVResults():
                     where_hyp = cook[hypothesis] != 'NA'
                     sum_df = pd.DataFrame(columns=(factor_cols + [f'cook_{i}' for i in t_cols]
                                                    + [f'cook_pval_{i}' for i in t_cols]),
-                                          index=cook.index, 
+                                          index=cook.index,
                                           dtype=object)
                     for i in t_cols:
                         sum_df.loc[where_hyp, f'cook_{i}'] = cook.loc[where_hyp, i]
@@ -1901,7 +1901,7 @@ class KernelAOVResults():
             cook_pval = self.cook_pvalues[hypothesis]
             sum_df = pd.DataFrame(columns=([f'cook_{i}' for i in t_cols]
                                            + [f'cook_pval_{i}' for i in t_cols]),
-                                  index=cook.index, 
+                                  index=cook.index,
                                   dtype=object)
             for i in t_cols:
                 sum_df[f'cook_{i}'] = cook[i]
