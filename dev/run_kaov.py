@@ -61,8 +61,11 @@ def run_kaov(data, input_formula, output_formula):
     """Create kaov object and run test"""
     # init object
     kfit_1 = AOV.from_formula(
-        f"{output_formula} ~ {input_formula}", data=data, nystrom=True
+        f"{output_formula} ~ {input_formula}", data=data, nystrom=True,
+        kernel_bandwidth='quantile', kernel_dist_quantile=0.5
     )
+    # bandwidth
+    print(f"Computed bandwidth = {kfit_1.computed_bandwidth}")
     # run kfda test
     res_1_pw = kfit_1.test(hypotheses='pairwise')
     # output
