@@ -20,7 +20,7 @@ from torch import eye, ones, tensor, float64
 from torch.linalg import multi_dot, inv
 import sys
 
-from .kernel import linear_kernel, gauss_kernel_median
+from .kernel import linear_kernel, gauss_kernel_median, gauss_kernel_quantile
 from .linalg import ordered_eigsy, _calculate_XXinv_and_ProjImX
 from .utils import convert_to_torch
 
@@ -229,14 +229,25 @@ class AOV:
         Specifies the kernel function. Acceptable values in the form of a
         string are 'gauss' (default) and 'linear'. Pass a callable for a
         user-defined kernel function.
-    kernel_bandwidth : 'median' or float, optional
-        Value of the bandwidth for kernels using a bandwidth. If 'median'
-        (default), the bandwidth will be set as the median or its multiple,
-        depending on the value of the parameter `median_coef`. Pass a float
-        for a user-defined value of the bandwidth.
+    kernel_bandwidth : 'median', 'quantile' or float, optional
+        Used only with pre-configured kernels, i.e. when `kernel_function` is
+        a string.
+        Value of the bandwidth for kernels using a bandwidth.
+        If 'median' (default), the bandwidth will be set as the median of the
+        data (dependent variables) row pairwise distances, possibly scaled
+        depending on `kernel_median_coef` parameter value.
+        If 'quantile', in combination with `kernel_dist_quantile` parameter
+        value, the bandwidth will be set as the corresponding quantile of the
+        data (dependent variables) positive-only row pairwise distances.
+        Pass a float for a user-defined bandwidth value.
     kernel_median_coef : float, optional
-        Multiple of the median to compute bandwidth if `kernel_bandwidth='median'`.
+        Scaling factor for the median-based bandwith computation when
+        `kernel_bandwidth='median'`, not used otherwise.
         The default is 1.
+    kernel_dist_quantile : float, optional
+        Quantile level to use for bandwidth computation when
+        `kernel_bandwidth='quantile'`, not used otherwise.
+        Defaults to 0.5 (median).
     nystrom : bool, optional
         If True, computes the Nystrom landmarks, in which case the observations
         in all attributes correspond to the landmarks and not the original data.
@@ -261,11 +272,15 @@ class AOV:
         not taken into account in the computations.
     kernel_function : callable or str, optional
         Specifies the kernel function.
-    kernel_bandwidth : 'median' or float, optional
+    kernel_bandwidth : 'median', 'quantile' or float, optional
         Value of the bandwidth for kernels using a bandwidth.
     kernel_median_coef : float, optional
-        Multiple of the median to compute bandwidth if `kernel_bandwidth='median'`.
-        The default is 1.
+        Scaling factor for the median-based bandwith computation when
+        `kernel_bandwidth='median'`. The default is 1.
+    kernel_dist_quantile : float, optional
+        Quantile level to use for bandwidth computation when
+        `kernel_bandwidth='quantile'`, not used otherwise.
+        Defaults to 0.5 (median).
     kernel: callable
         Kernel function used for calculations.
     computed_bandwidth : float
@@ -287,7 +302,7 @@ class AOV:
     def __init__(self, endog, exog, meta=None, endog_names=None, exog_names=None,
                  nystrom=False, n_landmarks=None, random_gen=None,
                  kernel_function='gauss', kernel_bandwidth='median',
-                 kernel_median_coef=1, verbose=1):
+                 kernel_median_coef=1, kernel_dist_quantile=0.5, verbose=1):
         if verbose < 1:
             warnings.simplefilter("ignore")
         elif verbose == 1:
@@ -309,12 +324,28 @@ class AOV:
         self.kernel_median_coef = kernel_median_coef
 
         if self.kernel_function == 'gauss':
-            self.kernel, self.computed_bandwidth = gauss_kernel_median(
-                x=self.data.endog if not nystrom else self.data_nystrom.endog,
-                bandwidth=kernel_bandwidth,
-                median_coef=kernel_median_coef,
-                return_bandwidth=True
-            )
+            if self.kernel_bandwidth == 'quantile':
+                # quantile-based specific case
+                self.kernel_dist_quantile = kernel_dist_quantile
+                self.kernel, self.computed_bandwidth = gauss_kernel_quantile(
+                    x=(
+                        self.data.endog if not nystrom
+                        else self.data_nystrom.endog
+                    ),
+                    bandwidth=kernel_bandwidth,
+                    return_bandwidth=True, q=kernel_dist_quantile
+                )
+            else:
+                # median-based or generic cases
+                self.kernel, self.computed_bandwidth = gauss_kernel_median(
+                    x=(
+                        self.data.endog if not nystrom
+                        else self.data_nystrom.endog
+                    ),
+                    bandwidth=kernel_bandwidth,
+                    median_coef=kernel_median_coef,
+                    return_bandwidth=True
+                )
         elif self.kernel_function == 'linear':
             self.kernel = linear_kernel
         else:
@@ -324,9 +355,10 @@ class AOV:
         self.diagnostics = None
 
     @classmethod
-    def from_formula(cls, formula, data, kernel_function='gauss', nystrom=False, 
+    def from_formula(cls, formula, data, kernel_function='gauss', nystrom=False,
                      n_landmarks=None, random_gen=None, verbose=1,
-                     kernel_bandwidth='median', kernel_median_coef=1):
+                     kernel_bandwidth='median', kernel_median_coef=1,
+                     kernel_dist_quantile=0.5):
         """
         Creates a kernel linear model from a formula and a dataframe.
 
@@ -342,14 +374,25 @@ class AOV:
             Specifies the kernel function. Acceptable values in the form of a
             string are 'gauss' (default) and 'linear'. Pass a callable for a
             user-defined kernel function.
-        kernel_bandwidth : 'median' or float, optional
-            Value of the bandwidth for kernels using a bandwidth. If 'median'
-            (default), the bandwidth will be set as the median or its multiple,
-            depending on the value of the parameter `median_coef`. Pass a float
-            for a user-defined value of the bandwidth.
+        kernel_bandwidth : 'median', 'quantile' or float, optional
+            Used only with pre-configured kernels, i.e. when `kernel_function`
+            is a string.
+            Value of the bandwidth for kernels using a bandwidth.
+            If 'median' (default), the bandwidth will be set as the median of the
+            data (dependent variables) row pairwise distances, possibly scaled
+            depending on `kernel_median_coef` parameter value.
+            If 'quantile', in combination with `kernel_dist_quantile` parameter
+            value, the bandwidth will be set as the corresponding quantile of the
+            data (dependent variables) positive-only row pairwise distances.
+            Pass a float for a user-defined bandwidth value.
         kernel_median_coef : float, optional
-            Multiple of the median to compute bandwidth if `kernel_bandwidth='median'`.
+            Scaling factor for the median-based bandwith computation when
+            `kernel_bandwidth='median'`, not used otherwise.
             The default is 1.
+        kernel_dist_quantile : float, optional
+            Quantile level to use for bandwidth computation when
+            `kernel_bandwidth='quantile'`, not used otherwise.
+            Defaults to 0.5 (median).
         verbose : int, optional
             The higher the verbosity, the more messages keeping track of
             computations. The default is 0.
@@ -396,7 +439,9 @@ class AOV:
                       n_landmarks=n_landmarks, random_gen=random_gen,
                       kernel_function=kernel_function,
                       kernel_bandwidth=kernel_bandwidth,
-                      kernel_median_coef=kernel_median_coef, verbose=verbose)
+                      kernel_median_coef=kernel_median_coef,
+                      kernel_dist_quantile=kernel_dist_quantile,
+                      verbose=verbose)
         aov_obj.formula = formula
         aov_obj._factor_info = exog.design_info.term_name_slices
         # Simplify the names for OneHot:
