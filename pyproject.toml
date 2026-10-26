@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "kaov"
-version = "1.12.0"
+version = "1.12.1"
 description = "Kernel Analysis of Variance"
 requires-python = ">=3.8"
 license = "MIT"
@@ -58,4 +58,17 @@ content-type = "text/markdown"
 [dependency-groups]
 dev = [
     "pytest>=8.3.5",
+    "ruff>=0.17.1",
+]
+
+[tool.uv]
+environments = [
+    # Linux
+    "sys_platform == 'linux'",
+    # MacOS arm
+    "sys_platform == 'darwin' and platform_machine != 'x86_64'",
+    # MacOS x86
+    "sys_platform == 'darwin' and platform_machine == 'x86_64'",
+    # Windows (not tested)
+    "sys_platform == 'win32'"
 ]
