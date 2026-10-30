@@ -8,8 +8,9 @@
 
 ## Contributors
 
-- Franck Picard ([ORCID:0000-0001-8084-5481)](https://orcid.org/0000-0001-8084-5481)) [[1]](#1)
+- Franck Picard ([ORCID:0000-0001-8084-5481](https://orcid.org/0000-0001-8084-5481)) [[1]](#1)
 - Bertrand Michel ([ORCID:0000-0002-5901-4146](https://orcid.org/0000-0002-5901-4146)) [[2]](#2)
+- Nathalie Vialaneix ([ORCID:0000-0003-1156-0639](https://orcid.org/0000-0003-1156-0639)) [[3]](#3)
 
 ## Affiliations
 
@@ -18,3 +19,7 @@ Laboratory of Biology and Modelling of the Cell, Université de Lyon, Ecole Norm
 
 <a id="2">[2]</a>
 Nantes Université, Centrale Nantes, Laboratoire de Mathématiques Jean Leray, CNRS UMR 6629, F‐44000 Nantes, France
+
+<a id="3">[3]</a>
+Université de Toulouse, INRAE, UR875 MIAT, 31326 Castanet-Tolosan, France
+

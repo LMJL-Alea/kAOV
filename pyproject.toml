@@ -72,3 +72,6 @@ environments = [
     # Windows (not tested)
     "sys_platform == 'win32'"
 ]
+
+[tool.setuptools.package-data]
+"kaov.datasets" = ["*.csv"]
