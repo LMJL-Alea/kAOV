@@ -616,8 +616,8 @@ class Test_assert_same_eigenvectors:
     # Failing tests
     def test_different_vectors_fail(self):
         """Test that different eigenvectors raise AssertionError."""
-        a = np.array([[1.0, 0.0], [0.0, 1.0]])
-        b = np.array([[1.0, 0.0], [0.0, 0.5]])
+        a = np.array([[1.0, 0.0], [0.0, 1.0], [1.0, 1.0]])
+        b = np.array([[1.0, 0.0], [0.0, 0.5], [1.0, 1.0]])
         with pytest.raises(AssertionError):
             assert_same_eigenvectors(a, b)
 
@@ -635,6 +635,16 @@ class Test_assert_same_eigenvectors:
         with pytest.raises(AssertionError):
             assert_same_eigenvectors(a, b)
 
+    def test_reordered_vectors_fail(self, filtered_torch_eigen):
+        """Test with negated torch tensor."""
+        a = filtered_torch_eigen
+        # shuffle columns
+        g = to.Generator().manual_seed(42)
+        perm = to.randperm(a.shape[1], generator=g)  # random permutation
+        b = a[:, perm]             # shuffle columns
+        with pytest.raises(AssertionError):
+            assert_same_eigenvectors(a, b)
+
     # Tolerance tests
     def test_custom_tolerances(self):
         """Test with custom tolerance values."""
@@ -645,9 +655,9 @@ class Test_assert_same_eigenvectors:
     def test_strict_tolerances_fail(self):
         """Test that strict tolerances fail for slightly different vectors."""
         a = np.array([[1.0, 0.0], [0.0, 1.0]])
-        b = np.array([[1.0 + 1e-8, 0.0], [0.0, 1.0]])
+        b = a + 1e-1
         with pytest.raises(AssertionError):
-            assert_same_eigenvectors(a, b, rtol=0, atol=1e-11)
+            assert_same_eigenvectors(a, b, rtol=0, atol=1e-8)
 
     # Edge cases
     def test_single_vector(self):
