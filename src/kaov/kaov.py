@@ -126,10 +126,10 @@ class Data:
         self.exog = convert_to_torch(exog)
         self.endog = convert_to_torch(endog)
         self.meta = meta
-        self.index = exog.index if hasattr(exog, "index") else range(self.nobs)
         self.nobs = self.exog.shape[0]
         self.nlvl = self.exog.shape[1]
         self.nvar = self.endog.shape[1]
+        self.index = exog.index if hasattr(exog, "index") else np.arange(self.nobs)
         if endog_names is not None:
             self.endog_names = endog_names
         elif hasattr(endog, "columns"):
@@ -177,7 +177,7 @@ class Data:
             self.endog = self.endog[ny_ind]
             if isinstance(self.meta, (pd.Series, pd.DataFrame)):
                 self.meta = self.meta.iloc[ny_ind]
-            else:
+            elif self.meta is not None:
                 self.meta = self.meta[ny_ind]
             self.index = self.index[ny_ind]
             self._XXinv, self._ProjImX = _calculate_XXinv_and_ProjImX(self.exog)
