@@ -307,7 +307,7 @@ def assert_vec_equal_abs_one(
 
 def assert_same_eigenvectors(
     a: np.ndarray | to.Tensor, b: np.ndarray | to.Tensor,
-    rtol: float = 0, atol: float = 1e-11
+    rtol: float = 0, atol: float = 1e-11, eps: float = 1e-8
 ):
     """
     Assert that two sets of ordered eigenvectors are identical up to a
@@ -319,6 +319,9 @@ def assert_same_eigenvectors(
     `a[:, j] == -b[:, j]`, meaning that scalar product
     <a[:, j], b[:, j]> = 1 or -1.
 
+    Use column-wise cosine similarity function from PyTorch and check if all
+    results are close to 1.
+
     Parameters
     ----------
     a : np.ndarray or torch.Tensor
@@ -329,6 +332,8 @@ def assert_same_eigenvectors(
         Relative tolerance for comparison. Defaults to 0.
     atol : float, optional
         Absolute tolerance for comparison. Defaults to 1e-11.
+    eps : float, optional
+        Tolerance for cosine similarity. Default to 1e-8.
 
     Returns
     -------
@@ -359,8 +364,8 @@ def assert_same_eigenvectors(
     -----
     - Both input arrays must be of the same type (both NumPy arrays or
       both PyTorch tensors).
-    - The function checks that for each column j, the scalar product
-      <a[:, j], b[:, j]> is either 1 or -1, meaning the eigenvectors
+    - The function checks that for each pairs of column j, cosine similarity
+      between a[:, j] and b[:, j] is either 1 or -1, meaning the eigenvectors
       are identical up to a sign flip.
     - The tolerance parameters follow the same conventions as
       `numpy.testing.assert_allclose` and
@@ -374,16 +379,16 @@ def assert_same_eigenvectors(
     assert isinstance(a, np.ndarray) and isinstance(b, np.ndarray) or \
         isinstance(a, to.Tensor) and isinstance(b, to.Tensor)
 
+    # convert to PyTorch if numpy
+    if isinstance(a, np.ndarray) and isinstance(b, np.ndarray):
+        a = to.from_numpy(a)
+        b = to.from_numpy(b)
+
     # check dimension
     assert a.shape == b.shape
 
-    # setup required functions
-    einsum_fun = np.einsum if isinstance(a, np.ndarray) else to.einsum
+    # compute cosine similarity
+    cos_res = to.cosine_similarity(a, b, dim=0, eps=eps)
 
-    abs_fun = np.abs if isinstance(a, np.ndarray) else to.abs
-
-    # compute column-wise scalar product
-    col_scal_prod = einsum_fun('ij,ij->j', a, b)
-
-    # check results (assert that all scalar product result are 1 or -1)
-    assert_vec_equal_abs_one(abs_fun(col_scal_prod), rtol=rtol, atol=atol)
+    # check results (assert that all result are 1 or -1)
+    assert_vec_equal_abs_one(cos_res, rtol=rtol, atol=atol)
