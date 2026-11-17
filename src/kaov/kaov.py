@@ -355,10 +355,11 @@ class AOV:
         self.diagnostics = None
 
     @classmethod
-    def from_formula(cls, formula, data, kernel_function='gauss', nystrom=False,
-                     n_landmarks=None, random_gen=None, verbose=1,
+    def from_formula(cls, formula, data, nystrom=False,
+                     n_landmarks=None, random_gen=None,
+                     kernel_function='gauss',
                      kernel_bandwidth='median', kernel_median_coef=1,
-                     kernel_dist_quantile=0.5):
+                     kernel_dist_quantile=0.5, verbose=1):
         """
         Creates a kernel linear model from a formula and a dataframe.
 
@@ -370,6 +371,18 @@ class AOV:
         data : pandas.DataFrame
             The data for the model. Columns must contain the values for the
             factors in the formula, with the names matching those in the formula.
+        nystrom : bool, optional
+            If True, computes the Nystrom landmarks, in which case the observations
+            in all attributes correspond to the landmarks and not the original data.
+            The default is False.
+        n_landmarks: int, optional
+            Number of landmarks used in the Nystrom method. If unspecified, one
+            fifth of the observations are selected as landmarks.
+        random_gen :  int, Generator, RandomState instance or None
+            Determines random number generation for the landmarks selection.
+            If None (default), the generator is the RandomState instance used
+            by `np.random`. To ensure the results are reproducible, pass an int
+            to instanciate the seed, or a Generator/RandomState instance (recommended).
         kernel_function : callable or str, optional
             Specifies the kernel function. Acceptable values in the form of a
             string are 'gauss' (default) and 'linear'. Pass a callable for a
