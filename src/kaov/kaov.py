@@ -21,7 +21,7 @@ from torch.linalg import multi_dot, inv
 import sys
 
 from .kernel import linear_kernel, gauss_kernel_median, gauss_kernel_quantile
-from .linalg import ordered_eigsy, _calculate_XXinv_and_ProjImX
+from .linalg import ordered_eigsy
 from .utils import convert_to_torch
 
 sys.setrecursionlimit(10 ** 6)
@@ -114,11 +114,25 @@ class Data:
         A 1-dimensional array_like containing names of the dependent variables.
     exog_names : 1-d array_like
         A 1-dimensional array_like containing names of the independent variables.
+    _XXinv : 2-d torch.tensor
+        Pseudo-inverse of the Gram matrix X^T X, with dimensions nlvl x nlvl.
+    _Q : 2-d torch.tensor
+        Factor X @ _XXinv, with dimensions nobs x nlvl, such that the projection
+        onto col(X) is applied as ``ProjImX @ M = _Q @ (X.T @ M)`` for any matrix
+        M with nobs rows. This avoids storing the nobs x nobs projector.
+    _leverage : 1-d torch.tensor
+        Diagonal of the projection matrix onto col(X) (leverage scores h_ii),
+        computed without forming the nobs x nobs projector.
     nystrom : bool
         False by default, True if the Nystrom approximation is performed, in
         which case the observations in all attributes correspond to the
         landmarks and not the original data.
 
+    Notes
+    -----
+    The nobs x nobs projection matrices ProjImX and ProjImXorthogonal are never
+    stored; they are applied on the fly through the `_proj` and `_proj_orth`
+    methods, which only involve nobs x nlvl factors.
     """
 
     def __init__(self, endog, exog, meta=None, endog_names=None, exog_names=None,
@@ -126,10 +140,10 @@ class Data:
         self.exog = convert_to_torch(exog)
         self.endog = convert_to_torch(endog)
         self.meta = meta
-        self.index = exog.index if hasattr(exog, "index") else range(self.nobs)
         self.nobs = self.exog.shape[0]
         self.nlvl = self.exog.shape[1]
         self.nvar = self.endog.shape[1]
+        self.index = exog.index if hasattr(exog, "index") else np.arange(self.nobs)
         if endog_names is not None:
             self.endog_names = endog_names
         elif hasattr(endog, "columns"):
@@ -155,8 +169,8 @@ class Data:
             raise ValueError("The length of `endog_names` should be equal to "\
                              "the number of columns in `endog`.")
 
-        # Calculate useful matrices:
-        self._XXinv, self._ProjImX = _calculate_XXinv_and_ProjImX(self.exog)
+        # Calculate useful small-size quantities (no n x n matrix is stored):
+        self._set_projector_factors()
 
         self.nystrom = nystrom
         if self.nystrom:
@@ -169,7 +183,8 @@ class Data:
                 rnd_gen = np.random.default_rng(random_gen)
             else:
                 rnd_gen = np.random
-            h_ii = diag(self._ProjImX)
+            # leverage scores h_ii = diag(ProjImX), used as sampling probabilities
+            h_ii = self._leverage
             ny_ind = rnd_gen.choice(np.arange(self.exog.shape[0]), size=self.nobs,
                                     p=h_ii/h_ii.sum(), replace=False)
             ny_ind.sort()
@@ -177,11 +192,42 @@ class Data:
             self.endog = self.endog[ny_ind]
             if isinstance(self.meta, (pd.Series, pd.DataFrame)):
                 self.meta = self.meta.iloc[ny_ind]
-            else:
+            elif self.meta is not None:
                 self.meta = self.meta[ny_ind]
             self.index = self.index[ny_ind]
-            self._XXinv, self._ProjImX = _calculate_XXinv_and_ProjImX(self.exog)
-        self._ProjImXorthogonal = eye(self.nobs) - self._ProjImX
+            # recompute the small-size quantities on the landmark design
+            self._set_projector_factors()
+
+    def _set_projector_factors(self):
+        """
+        Computes the small-size quantities used to apply the projection matrices
+        without storing them:
+        - `_XXinv`: pseudo-inverse of X^T X (nlvl x nlvl), via a rank-truncated
+          eigendecomposition (same construction as in
+          `linalg._calculate_XXinv_and_ProjImX`, but without forming ProjImX);
+        - `_Q = X @ _XXinv` (nobs x nlvl), the projector factor;
+        - `_leverage = diag(X @ _XXinv @ X^T)` (nobs vector), computed as the
+          row-wise sum of `_Q * X`.
+        """
+        XX = matmul(self.exog.T, self.exog)
+        sp, ev = ordered_eigsy(XX)
+        cutoff = int(np.linalg.matrix_rank(self.exog.numpy()))
+        cutoff = min(cutoff, len(sp))  # ordered_eigsy keeps only positive eigenvalues
+        sp, ev = sp[:cutoff], ev[:, :cutoff]
+        self._XXinv = multi_dot([ev, diag(sp ** -1), ev.T])
+        self._Q = matmul(self.exog, self._XXinv)
+        self._leverage = (self._Q * self.exog).sum(dim=1)
+
+    def _proj(self, M):
+        """Applies the projection onto col(X): returns ProjImX @ M, computed as
+        `_Q @ (X.T @ M)` so that no nobs x nobs matrix is formed. M must have
+        nobs rows."""
+        return matmul(self._Q, matmul(self.exog.T, M))
+
+    def _proj_orth(self, M):
+        """Applies the residual projection: returns (I - ProjImX) @ M = M - ProjImX @ M,
+        without forming any nobs x nobs matrix. M must have nobs rows."""
+        return M - self._proj(M)
 
     def _diagonalize_residual_covariance(self, K):
         """
@@ -190,15 +236,17 @@ class Data:
         the eigenvectors is stored since it is used in all calculations.
 
         """
-        Kresidual = 1 / self.nobs * multi_dot([self._ProjImXorthogonal,
-                                               K, self._ProjImXorthogonal])
+        # Kresidual = (1/n) * P⊥ @ K @ P⊥, using P⊥ symmetric and idempotent:
+        # P⊥ K P⊥ = (P⊥ (P⊥ K)^T)^T, both factors applied via _proj_orth
+        A = self._proj_orth(K)
+        Kresidual = 1 / self.nobs * self._proj_orth(A.T).T
         sp, ev = ordered_eigsy(Kresidual)
         sp_power = -1/2 if self.nystrom else -1
         sp12 = sp ** sp_power * self.nobs ** (-1/2)
         to_ignore = sp12.isnan()
         sp12 = sp12[~to_ignore]
         U = sp12 * ev[:, ~to_ignore]
-        U_norm = matmul(self._ProjImXorthogonal, U)
+        U_norm = self._proj_orth(U)
         return sp, U_norm
 
 
@@ -355,10 +403,11 @@ class AOV:
         self.diagnostics = None
 
     @classmethod
-    def from_formula(cls, formula, data, kernel_function='gauss', nystrom=False,
-                     n_landmarks=None, random_gen=None, verbose=1,
+    def from_formula(cls, formula, data, nystrom=False,
+                     n_landmarks=None, random_gen=None,
+                     kernel_function='gauss',
                      kernel_bandwidth='median', kernel_median_coef=1,
-                     kernel_dist_quantile=0.5):
+                     kernel_dist_quantile=0.5, verbose=1):
         """
         Creates a kernel linear model from a formula and a dataframe.
 
@@ -370,6 +419,18 @@ class AOV:
         data : pandas.DataFrame
             The data for the model. Columns must contain the values for the
             factors in the formula, with the names matching those in the formula.
+        nystrom : bool, optional
+            If True, computes the Nystrom landmarks, in which case the observations
+            in all attributes correspond to the landmarks and not the original data.
+            The default is False.
+        n_landmarks: int, optional
+            Number of landmarks used in the Nystrom method. If unspecified, one
+            fifth of the observations are selected as landmarks.
+        random_gen :  int, Generator, RandomState instance or None
+            Determines random number generation for the landmarks selection.
+            If None (default), the generator is the RandomState instance used
+            by `np.random`. To ensure the results are reproducible, pass an int
+            to instanciate the seed, or a Generator/RandomState instance (recommended).
         kernel_function : callable or str, optional
             Specifies the kernel function. Acceptable values in the form of a
             string are 'gauss' (default) and 'linear'. Pass a callable for a
@@ -452,7 +513,7 @@ class AOV:
 
     def __str__(self):
         s = "Kernel linear model"
-        s + f" with {self.data.nobs} observations and {self.data.nvar} features."
+        s += f" with {self.data.nobs} observations and {self.data.nvar} features."
         if self.data_nystrom is not None:
             n_n, g = self.data.endog.shape
             s += "\nNystrom approximation with"
@@ -497,13 +558,15 @@ class AOV:
         columns = list(range(1, n_trunc + 1))
         embeddings = pd.DataFrame(multi_dot([K, U_norm_T]),
                                   index=self.data.index, columns=columns)
-        predictions = pd.DataFrame(multi_dot([self.data._ProjImX, K, U_norm_T]),
+        predictions = pd.DataFrame(self.data._proj(multi_dot([K, U_norm_T])),
                                    index=self.data.index, columns=columns)
-        residuals = pd.DataFrame(multi_dot([self.data._ProjImXorthogonal, K, U_norm_T]),
+        residuals = pd.DataFrame(self.data._proj_orth(multi_dot([K, U_norm_T])),
                                  index=self.data.index, columns=columns)
-        self.diagnostics = {'Embeddings': embeddings,
-                               'Predictions': predictions,
-                               'Residuals': residuals}
+        self.diagnostics = {
+            'Embeddings': embeddings,
+            'Predictions': predictions,
+            'Residuals': residuals
+        }
 
     def plot_diagnostics(self, trunc=100, diagnostic='residuals', n_trunc=100,
                          n_anchors=None, colormap='viridis', alpha=.75,
@@ -765,8 +828,8 @@ class AOV:
         """
         K_YZ = self.kernel(self.data.endog, self.data_nystrom.endog)
         K_anchor_projected = multi_dot([anchors.T, K_YZ.T,
-                                        self.data._ProjImXorthogonal,
-                                        K_YZ, anchors])
+                                        self.data._proj_orth(K_YZ),
+                                        anchors])
         K_anchor_projected *= (1/self.data.nobs)
         return ordered_eigsy(K_anchor_projected)
 
@@ -884,7 +947,7 @@ class AOV:
         W = multi_dot([self.data.exog, self.data._XXinv, L.T])
         LXXLinv = self._compute_LXXLinv(L)
         coef_D = diag(multi_dot([W, LXXLinv, W.T]))
-        one_minus_hii = (1 - diag(self.data._ProjImX))
+        one_minus_hii = (1 - self.data._leverage)
         coef_D /= (one_minus_hii ** 2 * L.shape[0])
         LL = matmul(L, L.T)
         L_inv = matmul(L.T, inv(LL))
@@ -897,8 +960,9 @@ class AOV:
         cook_pvalues = {}
         for t in range(1, n_trunc + 1):
             # Cook distances:
-            cook_traces = diag(multi_dot([self.data._ProjImXorthogonal, K_T[:t].T,
-                                          K_T[:t], self.data._ProjImXorthogonal]))
+            A = K_T[:t]
+            PA = self.data._proj_orth(A.T)  # P⊥ @ Aᵀ, shape n x t
+            cook_traces = diag(PA @ PA.T)   # diag(P⊥ Aᵀ A P⊥), since A P⊥ = (P⊥ Aᵀ)ᵀ = PA.T
             cook_distances_norm = (cook_traces * coef_D).numpy() / np.array(C_i)
             cook_distances[t] = (cook_distances_norm if normalize else
                                  (cook_traces * coef_D).numpy())
