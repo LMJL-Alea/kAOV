@@ -558,13 +558,15 @@ class AOV:
         columns = list(range(1, n_trunc + 1))
         embeddings = pd.DataFrame(multi_dot([K, U_norm_T]),
                                   index=self.data.index, columns=columns)
-        predictions = pd.DataFrame(multi_dot([self.data._ProjImX, K, U_norm_T]),
+        predictions = pd.DataFrame(self.data._proj(multi_dot([K, U_norm_T])),
                                    index=self.data.index, columns=columns)
-        residuals = pd.DataFrame(multi_dot([self.data._ProjImXorthogonal, K, U_norm_T]),
+        residuals = pd.DataFrame(self.data._proj_orth(multi_dot([K, U_norm_T])),
                                  index=self.data.index, columns=columns)
-        self.diagnostics = {'Embeddings': embeddings,
-                               'Predictions': predictions,
-                               'Residuals': residuals}
+        self.diagnostics = {
+            'Embeddings': embeddings,
+            'Predictions': predictions,
+            'Residuals': residuals
+        }
 
     def plot_diagnostics(self, trunc=100, diagnostic='residuals', n_trunc=100,
                          n_anchors=None, colormap='viridis', alpha=.75,
@@ -826,8 +828,8 @@ class AOV:
         """
         K_YZ = self.kernel(self.data.endog, self.data_nystrom.endog)
         K_anchor_projected = multi_dot([anchors.T, K_YZ.T,
-                                        self.data._ProjImXorthogonal,
-                                        K_YZ, anchors])
+                                        self.data._proj_orth(K_YZ),
+                                        anchors])
         K_anchor_projected *= (1/self.data.nobs)
         return ordered_eigsy(K_anchor_projected)
 
@@ -945,7 +947,7 @@ class AOV:
         W = multi_dot([self.data.exog, self.data._XXinv, L.T])
         LXXLinv = self._compute_LXXLinv(L)
         coef_D = diag(multi_dot([W, LXXLinv, W.T]))
-        one_minus_hii = (1 - diag(self.data._ProjImX))
+        one_minus_hii = (1 - self.data._leverage)
         coef_D /= (one_minus_hii ** 2 * L.shape[0])
         LL = matmul(L, L.T)
         L_inv = matmul(L.T, inv(LL))
@@ -958,8 +960,9 @@ class AOV:
         cook_pvalues = {}
         for t in range(1, n_trunc + 1):
             # Cook distances:
-            cook_traces = diag(multi_dot([self.data._ProjImXorthogonal, K_T[:t].T,
-                                          K_T[:t], self.data._ProjImXorthogonal]))
+            A = K_T[:t]
+            PA = self.data._proj_orth(A.T)  # P⊥ @ Aᵀ, shape n x t
+            cook_traces = diag(PA @ PA.T)   # diag(P⊥ Aᵀ A P⊥), since A P⊥ = (P⊥ Aᵀ)ᵀ = PA.T
             cook_distances_norm = (cook_traces * coef_D).numpy() / np.array(C_i)
             cook_distances[t] = (cook_distances_norm if normalize else
                                  (cook_traces * coef_D).numpy())

@@ -551,7 +551,9 @@ class TestProjectionsCookAndCorrection:
         # independent recomputation of the normalized distances
         d = aov_object.data
         K_T = aov_object._compute_K_T(n_trunc=n_trunc)
-        X, XXinv, P, Po = d.exog, d._XXinv, d._ProjImX, d._ProjImXorthogonal
+        X, XXinv = d.exog, d._XXinv
+        I = torch.eye(d.nobs, dtype=torch.float64)
+        P, Po = d._proj(I), d._proj_orth(I)
         LXXLinv = torch.linalg.pinv(L @ XXinv @ L.T)
         W = X @ XXinv @ L.T
         coef_D = torch.diag(W @ LXXLinv @ W.T) / ((1 - torch.diag(P)) ** 2 * L.shape[0])
