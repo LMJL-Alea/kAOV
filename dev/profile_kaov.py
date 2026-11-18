@@ -36,6 +36,7 @@ N_GROUP = [3, 4]
 N_TRUNC = 20          # truncation level for test()
 SEED = 42
 SAVE_PATH = "tmp_aov_profile.pkl.gz"   # temporary file for size measurement
+MEASURE_SAVED_FILE = True              # set to False to skip the save-to-disk measurement
 
 
 def peak_rss_mb():
@@ -65,9 +66,11 @@ def run_once(n_row, n_col, nystrom=False, n_landmarks=None):
     res = kfit.test(n_trunc=N_TRUNC, verbose=0)
 
     # 4. save the fitted object (compressed) and measure the file size
-    io.save(kfit, SAVE_PATH, compress=True)
-    saved_file_mb = os.path.getsize(SAVE_PATH) / 1e6
-    os.remove(SAVE_PATH)   # clean up
+    saved_file_mb = None
+    if MEASURE_SAVED_FILE:
+        io.save(kfit, SAVE_PATH, compress=True)
+        saved_file_mb = os.path.getsize(SAVE_PATH) / 1e6
+        os.remove(SAVE_PATH)   # clean up
 
     elapsed = time.perf_counter() - t0
     _, peak_traced = tracemalloc.get_traced_memory()   # (current, peak) in bytes
@@ -78,6 +81,9 @@ def run_once(n_row, n_col, nystrom=False, n_landmarks=None):
     return elapsed, peak_traced_mb, peak_rss, saved_file_mb
 
 
+def fmt_saved(mb):
+    return f"{mb:>16.2f}" if mb is not None else f"{'-':>16}"
+
 def main():
     header = (f"{'n_row':>6} | {'n_col':>5} | {'nystrom':>7} | "
               f"{'time (s)':>9} | {'traced peak (MB)':>17} | {'peak RSS (MB)':>14} | "
@@ -87,9 +93,8 @@ def main():
     for n_row, n_col in SIZES:
         elapsed, traced_mb, rss_mb, saved_mb = run_once(n_row, n_col, nystrom=False)
         print(f"{n_row:>6} | {n_col:>5} | {'-':>7} | "
-              f"{elapsed:>9.2f} | {traced_mb:>17.1f} | {rss_mb:>14.1f} | {saved_mb:>16.2f}")
+              f"{elapsed:>9.2f} | {traced_mb:>17.1f} | {rss_mb:>14.1f} | {fmt_saved(saved_mb)}")
 
-    # optional: same sizes with the Nystrom approximation
     print("\nWith Nystrom approximation (n_landmarks = n_row // 5):")
     print(header)
     print("-" * len(header))
@@ -98,7 +103,7 @@ def main():
             n_row, n_col, nystrom=True, n_landmarks=max(1, n_row // 5)
         )
         print(f"{n_row:>6} | {n_col:>5} | {'yes':>7} | "
-              f"{elapsed:>9.2f} | {traced_mb:>17.1f} | {rss_mb:>14.1f} | {saved_mb:>16.2f}")
+              f"{elapsed:>9.2f} | {traced_mb:>17.1f} | {rss_mb:>14.1f} | {fmt_saved(saved_mb)}")
 
 
 if __name__ == "__main__":
