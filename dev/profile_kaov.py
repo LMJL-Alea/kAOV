@@ -5,20 +5,24 @@ For each input size, it:
   1. creates a synthetic dataset with kaov.testing.dummy_data,
   2. builds an AOV object with AOV.from_formula,
   3. runs AOV.test(),
-and reports wall-clock time, peak traced Python memory and peak RSS.
+  4. saves the AOV object with kaov.io.save(..., compressed=True) and records
+     the on-disk file size (the file is removed afterwards),
+and reports wall-clock time, peak traced Python memory, peak RSS and the
+saved file size.
 
 Run with:  python profile_kaov.py
 """
 
 import gc
 import itertools
+import os
 import resource
 import time
 import tracemalloc
 
 import pandas as pd
 
-from kaov import AOV
+from kaov import AOV, io
 from kaov.testing import dummy_data
 
 # Input sizes to profile: (n_row, n_col)
@@ -31,6 +35,7 @@ N_FACTOR = 2
 N_GROUP = [3, 4]
 N_TRUNC = 20          # truncation level for test()
 SEED = 42
+SAVE_PATH = "tmp_aov_profile.pkl.gz"   # temporary file for size measurement
 
 
 def peak_rss_mb():
@@ -39,9 +44,9 @@ def peak_rss_mb():
 
 
 def run_once(n_row, n_col, nystrom=False, n_landmarks=None):
-    """Run one full kAOV analysis and return (elapsed_s, peak_traced_mb, peak_rss_mb)."""
+    """Run one full kAOV analysis and return
+    (elapsed_s, peak_traced_mb, peak_rss_mb, saved_file_mb)."""
     gc.collect()
-    rss_before = peak_rss_mb()
 
     tracemalloc.start()
     t0 = time.perf_counter()
@@ -59,35 +64,41 @@ def run_once(n_row, n_col, nystrom=False, n_landmarks=None):
     # 3. hypothesis test
     res = kfit.test(n_trunc=N_TRUNC, verbose=0)
 
+    # 4. save the fitted object (compressed) and measure the file size
+    io.save(kfit, SAVE_PATH, compressed=True)
+    saved_file_mb = os.path.getsize(SAVE_PATH) / 1e6
+    os.remove(SAVE_PATH)   # clean up
+
     elapsed = time.perf_counter() - t0
     _, peak_traced = tracemalloc.get_traced_memory()   # (current, peak) in bytes
     tracemalloc.stop()
 
     peak_traced_mb = peak_traced / 1e6
     peak_rss = peak_rss_mb()
-    return elapsed, peak_traced_mb, peak_rss, res
+    return elapsed, peak_traced_mb, peak_rss, saved_file_mb
 
 
 def main():
-    print(f"{'n_row':>6} | {'n_col':>5} | {'nystrom':>7} | "
-          f"{'time (s)':>9} | {'traced peak (MB)':>17} | {'peak RSS (MB)':>14}")
-    print("-" * 75)
+    header = (f"{'n_row':>6} | {'n_col':>5} | {'nystrom':>7} | "
+              f"{'time (s)':>9} | {'traced peak (MB)':>17} | {'peak RSS (MB)':>14} | "
+              f"{'saved file (MB)':>16}")
+    print(header)
+    print("-" * len(header))
     for n_row, n_col in SIZES:
-        elapsed, traced_mb, rss_mb, _ = run_once(n_row, n_col, nystrom=False)
+        elapsed, traced_mb, rss_mb, saved_mb = run_once(n_row, n_col, nystrom=False)
         print(f"{n_row:>6} | {n_col:>5} | {'-':>7} | "
-              f"{elapsed:>9.2f} | {traced_mb:>17.1f} | {rss_mb:>14.1f}")
+              f"{elapsed:>9.2f} | {traced_mb:>17.1f} | {rss_mb:>14.1f} | {saved_mb:>16.2f}")
 
     # optional: same sizes with the Nystrom approximation
     print("\nWith Nystrom approximation (n_landmarks = n_row // 5):")
-    print(f"{'n_row':>6} | {'n_col':>5} | {'nystrom':>7} | "
-          f"{'time (s)':>9} | {'traced peak (MB)':>17} | {'peak RSS (MB)':>14}")
-    print("-" * 75)
+    print(header)
+    print("-" * len(header))
     for n_row, n_col in SIZES:
-        elapsed, traced_mb, rss_mb, _ = run_once(
+        elapsed, traced_mb, rss_mb, saved_mb = run_once(
             n_row, n_col, nystrom=True, n_landmarks=max(1, n_row // 5)
         )
         print(f"{n_row:>6} | {n_col:>5} | {'yes':>7} | "
-              f"{elapsed:>9.2f} | {traced_mb:>17.1f} | {rss_mb:>14.1f}")
+              f"{elapsed:>9.2f} | {traced_mb:>17.1f} | {rss_mb:>14.1f} | {saved_mb:>16.2f}")
 
 
 if __name__ == "__main__":
