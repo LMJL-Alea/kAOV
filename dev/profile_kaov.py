@@ -65,7 +65,7 @@ def run_once(n_row, n_col, nystrom=False, n_landmarks=None):
     res = kfit.test(n_trunc=N_TRUNC, verbose=0)
 
     # 4. save the fitted object (compressed) and measure the file size
-    io.save(kfit, SAVE_PATH, compressed=True)
+    io.save(kfit, SAVE_PATH, compress=True)
     saved_file_mb = os.path.getsize(SAVE_PATH) / 1e6
     os.remove(SAVE_PATH)   # clean up
 
