@@ -146,7 +146,7 @@ def assert_equal_data_obj(
     """
 
     # check torch.Tensor attribute equality
-    for attr in ['_ProjImX', '_ProjImXorthogonal', '_XXinv', 'endog', 'exog']:
+    for attr in ['_Q', '_leverage', '_XXinv', 'endog', 'exog']:
         tot.assert_close(
             getattr(data1, attr), getattr(data2, attr), rtol=rtol, atol=atol
         )
