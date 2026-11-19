@@ -22,8 +22,6 @@ import resource
 import time
 import tracemalloc
 
-import pandas as pd
-
 from kaov import AOV, io
 from kaov.testing import dummy_data
 
