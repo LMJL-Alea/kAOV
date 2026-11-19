@@ -381,8 +381,8 @@ def assert_same_eigenvectors(
 
     # convert to PyTorch if numpy
     if isinstance(a, np.ndarray) and isinstance(b, np.ndarray):
-        a = to.from_numpy(a)
-        b = to.from_numpy(b)
+        a = to.from_numpy(a.copy())
+        b = to.from_numpy(b.copy())
 
     # check dimension
     assert a.shape == b.shape
