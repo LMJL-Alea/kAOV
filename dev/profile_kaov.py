@@ -11,6 +11,8 @@ and reports wall-clock time, peak traced Python memory, peak RSS and the
 saved file size.
 
 Run with:  python profile_kaov.py
+
+Limitation: RSS peak is for the entire script run.
 """
 
 import gc
